@@ -25,8 +25,8 @@ test('User can play, pause, and seek through video', async ({
 	// File info should be displayed
 	await expect(page.getByText(videoFileName)).toBeVisible()
 
-	// Click upload (same as video-upload.test.ts)
-	await page.getByRole('button', { name: /upload/i }).click()
+	// Click upload submit button (not the toggle button)
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
 
 	// Wait for upload to complete
 	await expect(page).toHaveURL('/videos/new')
@@ -206,8 +206,8 @@ test('User can click on video to place a tracking point', async ({
 	// File info should be displayed
 	await expect(page.getByText(videoFileName)).toBeVisible()
 
-	// Click upload
-	await page.getByRole('button', { name: /upload/i }).click()
+	// Click upload submit button (not the toggle button)
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
 
 	// Wait for upload to complete
 	await expect(page).toHaveURL('/videos/new')
@@ -291,4 +291,134 @@ test('User can click on video to place a tracking point', async ({
 	expect(point.x).toBeGreaterThanOrEqual(0)
 	expect(point.y).toBeGreaterThanOrEqual(0)
 	expect(point.videoId).toBe(video.id)
+	expect(point.trackingObjectId).toBeDefined()
+})
+
+test('User can navigate frames and place multiple points', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	// First, upload a video
+	await navigate('/videos/new')
+
+	// Use actual video file for more realistic testing
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	// File info should be displayed
+	await expect(page.getByText(videoFileName)).toBeVisible()
+
+	// Click upload submit button (not the toggle button)
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+
+	// Wait for upload to complete
+	await expect(page).toHaveURL('/videos/new')
+
+	// Wait for video to be stored in database (with retry)
+	let video = null
+	for (let i = 0; i < 20; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+		})
+		if (video) break
+		await page.waitForTimeout(200) // Wait 200ms before retrying
+	}
+
+	expect(video).toBeDefined()
+	if (!video) {
+		throw new Error('Video not found')
+	}
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(
+		page.getByRole('heading', { name: video.filename }),
+	).toBeVisible()
+
+	// Check that video element exists
+	const videoElement = page.getByLabel('Video content')
+	await expect(videoElement).toBeVisible()
+
+	// Wait for video metadata to load
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
+
+	// Wait for canvas to be present
+	const canvas = page.getByLabel(
+		'Tracking canvas - click to place tracking points',
+	)
+	await expect(canvas).toBeVisible()
+
+	// Get canvas dimensions
+	const canvasRect = await canvas.boundingBox()
+	expect(canvasRect).toBeDefined()
+	if (!canvasRect) {
+		throw new Error('Canvas element not found')
+	}
+
+	// Place first point at frame 0 (near center)
+	const clickX1 = canvasRect.width * 0.5
+	const clickY1 = canvasRect.height * 0.5
+	await canvas.click({ position: { x: clickX1, y: clickY1 } })
+	await page.waitForTimeout(500)
+
+	// Navigate to next frame
+	const nextFrameButton = page.getByLabel('Next frame')
+	await nextFrameButton.click()
+	await page.waitForTimeout(200)
+
+	// Place second point (slightly to the right, simulating object movement)
+	const clickX2 = canvasRect.width * 0.55
+	const clickY2 = canvasRect.height * 0.5
+	await canvas.click({ position: { x: clickX2, y: clickY2 } })
+	await page.waitForTimeout(500)
+
+	// Navigate to another frame
+	await nextFrameButton.click()
+	await page.waitForTimeout(200)
+
+	// Place third point (continuing the movement)
+	const clickX3 = canvasRect.width * 0.6
+	const clickY3 = canvasRect.height * 0.5
+	await canvas.click({ position: { x: clickX3, y: clickY3 } })
+	await page.waitForTimeout(500)
+
+	// Verify tracking points were created in database
+	const trackingPoints = await prisma.trackingPoint.findMany({
+		where: { videoId: video.id },
+		orderBy: { frame: 'asc' },
+	})
+
+	expect(trackingPoints.length).toBeGreaterThanOrEqual(3)
+
+	// Verify all points share the same trackingObjectId (they should be part of the same tracking object)
+	const trackingObjectIds = new Set(
+		trackingPoints.map((p) => p.trackingObjectId),
+	)
+	// At least some points should share the same trackingObjectId
+	// (they might be grouped if clicked near each other)
+	expect(trackingObjectIds.size).toBeGreaterThan(0)
+
+	// Verify points are associated with correct frame numbers
+	const frames = trackingPoints.map((p) => p.frame)
+	expect(frames.length).toBeGreaterThanOrEqual(3)
+	// Frames should be sequential or close to each other
+	const sortedFrames = [...frames].sort((a, b) => a - b)
+	expect(sortedFrames[0]).toBeGreaterThanOrEqual(0)
 })

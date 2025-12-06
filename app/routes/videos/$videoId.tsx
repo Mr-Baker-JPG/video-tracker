@@ -14,6 +14,7 @@ const CreateTrackingPointSchema = z.object({
 	frame: z.coerce.number().int().min(0),
 	x: z.coerce.number().min(0),
 	y: z.coerce.number().min(0),
+	trackingObjectId: z.string().optional(), // Optional: if provided, continue tracking that object
 })
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -45,8 +46,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 			frame: true,
 			x: true,
 			y: true,
+			trackingObjectId: true,
 		},
-		orderBy: { frame: 'asc' },
+		orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
 	})
 
 	const videoSrc = getVideoSrc(video.url)
@@ -69,7 +71,7 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 	}
 
-	const { videoId, frame, x, y } = submission.value
+	const { videoId, frame, x, y, trackingObjectId } = submission.value
 
 	// Verify video exists and user owns it
 	const video = await prisma.video.findFirst({
@@ -84,21 +86,58 @@ export async function action({ request }: Route.ActionArgs) {
 		{ status: 403 },
 	)
 
-	// Create tracking point
-	const trackingPoint = await prisma.trackingPoint.create({
-		data: {
+	// Determine tracking object ID: use provided one, or generate new one
+	let finalTrackingObjectId = trackingObjectId
+	if (!finalTrackingObjectId) {
+		// Generate a new tracking object ID (using cuid-like format)
+		finalTrackingObjectId = `obj_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+	}
+
+	// Check if a point already exists for this tracking object at this frame
+	const existingPoint = await prisma.trackingPoint.findFirst({
+		where: {
 			videoId,
+			trackingObjectId: finalTrackingObjectId,
 			frame,
-			x,
-			y,
-		},
-		select: {
-			id: true,
-			frame: true,
-			x: true,
-			y: true,
 		},
 	})
+
+	let trackingPoint
+	if (existingPoint) {
+		// Update existing point
+		trackingPoint = await prisma.trackingPoint.update({
+			where: { id: existingPoint.id },
+			data: {
+				x,
+				y,
+			},
+			select: {
+				id: true,
+				frame: true,
+				x: true,
+				y: true,
+				trackingObjectId: true,
+			},
+		})
+	} else {
+		// Create new tracking point
+		trackingPoint = await prisma.trackingPoint.create({
+			data: {
+				videoId,
+				frame,
+				x,
+				y,
+				trackingObjectId: finalTrackingObjectId,
+			},
+			select: {
+				id: true,
+				frame: true,
+				x: true,
+				y: true,
+				trackingObjectId: true,
+			},
+		})
+	}
 
 	return data({ success: true, trackingPoint })
 }

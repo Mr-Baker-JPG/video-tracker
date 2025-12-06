@@ -8,6 +8,7 @@ interface TrackingPoint {
 	frame: number
 	x: number
 	y: number
+	trackingObjectId: string
 }
 
 interface VideoPlayerProps {
@@ -45,6 +46,9 @@ export function VideoPlayer({
 	const [currentFrame, setCurrentFrame] = useState(0)
 	const [localTrackingPoints, setLocalTrackingPoints] =
 		useState<TrackingPoint[]>(trackingPoints)
+	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
+		string | null
+	>(null)
 
 	const handlePlayPause = useCallback(() => {
 		const video = videoRef.current
@@ -326,15 +330,45 @@ export function VideoPlayer({
 			const fps = 30
 			const frame = Math.floor(currentTime * fps)
 
+			// Check if there's an existing point nearby (within 50 pixels) in a previous frame
+			// to continue tracking the same object
+			let trackingObjectIdToUse: string | null = null
+			if (activeTrackingObjectId) {
+				// Use the active tracking object
+				trackingObjectIdToUse = activeTrackingObjectId
+			} else {
+				// Try to find a nearby point from a previous frame to continue tracking
+				const nearbyPoint = localTrackingPoints.find((point) => {
+					const distance = Math.sqrt(
+						Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2),
+					)
+					return distance < 50 && point.frame < frame
+				})
+				if (nearbyPoint) {
+					trackingObjectIdToUse = nearbyPoint.trackingObjectId
+					setActiveTrackingObjectId(nearbyPoint.trackingObjectId)
+				}
+			}
+
 			// Create tracking point locally for immediate feedback
+			const tempTrackingObjectId =
+				trackingObjectIdToUse || `temp-${Date.now()}`
 			const newPoint: TrackingPoint = {
 				id: `temp-${Date.now()}`,
 				frame,
 				x,
 				y,
+				trackingObjectId: tempTrackingObjectId,
 			}
 
-			setLocalTrackingPoints((prev) => [...prev, newPoint])
+			// Update local state: replace existing point for this object at this frame, or add new one
+			setLocalTrackingPoints((prev) => {
+				const filtered = prev.filter(
+					(p) =>
+						!(p.trackingObjectId === tempTrackingObjectId && p.frame === frame),
+				)
+				return [...filtered, newPoint]
+			})
 
 			// Save to server
 			const formData = new FormData()
@@ -343,6 +377,9 @@ export function VideoPlayer({
 			formData.append('frame', frame.toString())
 			formData.append('x', x.toString())
 			formData.append('y', y.toString())
+			if (trackingObjectIdToUse) {
+				formData.append('trackingObjectId', trackingObjectIdToUse)
+			}
 
 			if (videoId && fetcher) {
 				void fetcher.submit(formData, {
@@ -350,7 +387,7 @@ export function VideoPlayer({
 				})
 			}
 		},
-		[videoId, currentTime, fetcher],
+		[videoId, currentTime, fetcher, activeTrackingObjectId, localTrackingPoints],
 	)
 
 	// Draw tracking points on canvas
@@ -381,15 +418,25 @@ export function VideoPlayer({
 			// Don't draw if video dimensions aren't loaded yet
 			if (video.videoWidth === 0 || video.videoHeight === 0) return
 
-			// Only draw points for the current frame
-			const fps = 30
-			const frame = Math.floor(currentTime * fps)
+		// Draw points for the active tracking object across all frames
+		// If no active object, show all points for the current frame
+		const fps = 30
+		const frame = Math.floor(currentTime * fps)
 
-			const pointsForFrame = localTrackingPoints.filter(
+		let pointsToDraw: TrackingPoint[]
+		if (activeTrackingObjectId) {
+			// Show all points for the active tracking object
+			pointsToDraw = localTrackingPoints.filter(
+				(point) => point.trackingObjectId === activeTrackingObjectId,
+			)
+		} else {
+			// Show only points for the current frame
+			pointsToDraw = localTrackingPoints.filter(
 				(point) => point.frame === frame,
 			)
+		}
 
-			if (pointsForFrame.length === 0) return
+			if (pointsToDraw.length === 0) return
 
 			// Calculate scaling factor to convert video coordinates to canvas coordinates
 			const videoAspect = video.videoWidth / video.videoHeight
@@ -411,26 +458,51 @@ export function VideoPlayer({
 				offsetX = (canvas.width - scaledWidth) / 2
 			}
 
-			pointsForFrame.forEach((point) => {
+			// Draw trajectory line connecting points (if multiple points)
+			if (pointsToDraw.length > 1 && activeTrackingObjectId) {
+				ctx.strokeStyle = '#ff0000'
+				ctx.lineWidth = 2
+				ctx.beginPath()
+				const sortedPoints = [...pointsToDraw].sort((a, b) => a.frame - b.frame)
+				sortedPoints.forEach((point, index) => {
+					const canvasX = point.x * scale + offsetX
+					const canvasY = point.y * scale + offsetY
+					if (index === 0) {
+						ctx.moveTo(canvasX, canvasY)
+					} else {
+						ctx.lineTo(canvasX, canvasY)
+					}
+				})
+				ctx.stroke()
+			}
+
+			pointsToDraw.forEach((point) => {
 				// Convert video coordinates to canvas coordinates
 				const canvasX = point.x * scale + offsetX
 				const canvasY = point.y * scale + offsetY
 
+				// Use different color/style for current frame point
+				const isCurrentFrame = point.frame === frame
+				const pointColor = isCurrentFrame ? '#ff0000' : '#ff6666'
+				const pointSize = isCurrentFrame ? 6 : 4
+
 				// Draw point
-				ctx.fillStyle = '#ff0000'
+				ctx.fillStyle = pointColor
 				ctx.beginPath()
-				ctx.arc(canvasX, canvasY, 5, 0, 2 * Math.PI)
+				ctx.arc(canvasX, canvasY, pointSize, 0, 2 * Math.PI)
 				ctx.fill()
 
-				// Draw crosshair
-				ctx.strokeStyle = '#ff0000'
-				ctx.lineWidth = 1
-				ctx.beginPath()
-				ctx.moveTo(canvasX - 10, canvasY)
-				ctx.lineTo(canvasX + 10, canvasY)
-				ctx.moveTo(canvasX, canvasY - 10)
-				ctx.lineTo(canvasX, canvasY + 10)
-				ctx.stroke()
+				// Draw crosshair for current frame point
+				if (isCurrentFrame) {
+					ctx.strokeStyle = pointColor
+					ctx.lineWidth = 1
+					ctx.beginPath()
+					ctx.moveTo(canvasX - 10, canvasY)
+					ctx.lineTo(canvasX + 10, canvasY)
+					ctx.moveTo(canvasX, canvasY - 10)
+					ctx.lineTo(canvasX, canvasY + 10)
+					ctx.stroke()
+				}
 			})
 		}
 
@@ -456,25 +528,45 @@ export function VideoPlayer({
 			resizeObserver.disconnect()
 			video.removeEventListener('loadedmetadata', handleVideoLoaded)
 		}
-	}, [currentTime, localTrackingPoints])
+	}, [currentTime, localTrackingPoints, activeTrackingObjectId])
 
 	// Update local tracking points when fetcher returns new data
 	useEffect(() => {
 		if (fetcher?.data?.success && fetcher.data?.trackingPoint) {
 			const newPoint = fetcher.data.trackingPoint as TrackingPoint
 			setLocalTrackingPoints((prev) => {
-				// Replace temp point with real one if it exists
-				const tempIndex = prev.findIndex((p) => p.id.startsWith('temp-'))
+				// Replace temp point with real one if it exists (match by trackingObjectId and frame)
+				const tempIndex = prev.findIndex(
+					(p) =>
+						p.id.startsWith('temp-') &&
+						p.trackingObjectId === newPoint.trackingObjectId &&
+						p.frame === newPoint.frame,
+				)
 				if (tempIndex >= 0) {
 					const updated = [...prev]
 					updated[tempIndex] = newPoint
 					return updated
 				}
+				// Check if point already exists for this object at this frame and replace it
+				const existingIndex = prev.findIndex(
+					(p) =>
+						p.trackingObjectId === newPoint.trackingObjectId &&
+						p.frame === newPoint.frame,
+				)
+				if (existingIndex >= 0) {
+					const updated = [...prev]
+					updated[existingIndex] = newPoint
+					return updated
+				}
 				// Otherwise add new point
 				return [...prev, newPoint]
 			})
+			// Set active tracking object if not already set
+			if (!activeTrackingObjectId) {
+				setActiveTrackingObjectId(newPoint.trackingObjectId)
+			}
 		}
-	}, [fetcher?.data])
+	}, [fetcher?.data, activeTrackingObjectId])
 
 	return (
 		<div className={className}>
