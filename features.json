@@ -51,8 +51,8 @@
 				"E2E test: User can delete a video from the list",
 				"Manual: Verify video list displays correctly with thumbnails"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F005",
@@ -249,6 +249,21 @@
 				"Unit test: Validation prevents actions with insufficient data",
 				"E2E test: Error messages appear for failed video loads",
 				"Manual: Verify error messages are clear and actionable"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F020",
+			"title": "Transition to Prisma 7.1.0",
+			"description": "Upgrade Prisma from v6.7.0 to v7.1.0, including updating the schema to use the new prisma-client provider with required output field, creating prisma.config.ts for CLI configuration, updating Prisma Client instantiation to use @prisma/adapter-better-sqlite3 adapter, updating all imports from @prisma/client to the new generated path, and verifying database queries and client generation work correctly.",
+			"tests": [
+				"Unit test: Prisma Client generates successfully with prisma generate",
+				"Unit test: Prisma Client can be instantiated with SQLite adapter",
+				"Unit test: Basic database queries (create, read, update, delete) work with new client",
+				"E2E test: Application starts and database operations work end-to-end",
+				"Manual: Verify prisma migrate commands work with new config",
+				"Manual: Verify all existing database queries in the application function correctly"
 			],
 			"implemented": false,
 			"tests_passed": false
