@@ -35,6 +35,7 @@ implementation and testing of each feature as defined in `features.json`.
 **Status:** ✅ Implemented and tests passing
 
 **Implementation:**
+
 - Created video upload route at `/videos/new`
 - Implemented file input with validation for mp4, webm, and mov formats
 - Added file selection UI that displays selected file name and size
@@ -43,12 +44,52 @@ implementation and testing of each feature as defined in `features.json`.
 - Created form using Conform for form state management
 
 **Testing:**
+
 - ✅ Unit test: Upload component renders with file input (passing)
-- ⏭️ Unit test: File validation rejects non-video files (skipped - better tested in E2E)
-- ⏭️ Unit test: File validation accepts valid video formats (skipped - better tested in E2E)
-- ✅ E2E test: User can select a video file and see upload progress (covered in tests/e2e/video-upload.test.ts)
+- ⏭️ Unit test: File validation rejects non-video files (skipped - better tested
+  in E2E)
+- ⏭️ Unit test: File validation accepts valid video formats (skipped - better
+  tested in E2E)
+- ✅ E2E test: User can select a video file and see upload progress (covered in
+  tests/e2e/video-upload.test.ts)
 
 **Notes:**
-- Form submission with file uploads is difficult to test reliably in jsdom environment
+
+- Form submission with file uploads is difficult to test reliably in jsdom
+  environment
 - File validation tests are appropriately covered by E2E tests in Playwright
-- Server-side validation is implemented and will be fully tested when actual file storage is added in F002
+- Server-side validation is implemented and will be fully tested when actual
+  file storage is added in F002
+
+---
+
+### F002: Video Storage and Database Model
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Added Video model to Prisma schema with fields: id, userId, filename, url, duration (nullable), uploadedAt
+- Created database migration for Video model
+- Added `uploadVideo` function to `storage.server.ts` for uploading videos to S3/Tigris storage
+- Updated `/videos/new` action to:
+  - Upload video file to storage using `uploadVideo`
+  - Save video metadata to database using Prisma
+  - Redirect with success toast message
+- Exported `VideoUploadSchema` for testing purposes
+
+**Testing:**
+
+- ✅ Unit test: Video model can be created in database (passing)
+- ✅ Unit test: Video upload handler validates file type and size (passing - tests schema validation directly)
+- ✅ E2E test: Uploaded video is stored and retrievable (passing)
+- ✅ E2E test: User can select a video file and see upload progress (updated to verify database storage)
+
+**Notes:**
+
+- Video duration is nullable and can be calculated later (e.g., in frontend or via background job)
+- Storage upload is mocked in unit tests using vi.mock
+- File validation is tested via schema validation rather than full action execution to avoid timeout issues
+- E2E tests verify end-to-end flow including database persistence

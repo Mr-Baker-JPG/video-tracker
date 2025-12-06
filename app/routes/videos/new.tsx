@@ -10,6 +10,9 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
+import { prisma } from '#app/utils/db.server.ts'
+import { uploadVideo } from '#app/utils/storage.server.ts'
+import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/new.ts'
 
 export const handle = {
@@ -20,7 +23,7 @@ export const handle = {
 const VALID_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
 const MAX_FILE_SIZE = 1024 * 1024 * 500 // 500MB
 
-const VideoUploadSchema = z.object({
+export const VideoUploadSchema = z.object({
 	videoFile: z
 		.instanceof(File)
 		.refine((file) => file.size > 0, 'Video file is required')
@@ -40,7 +43,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-	await requireUserId(request)
+	const userId = await requireUserId(request)
 
 	const formData = await parseFormData(request, { maxFileSize: MAX_FILE_SIZE })
 	const submission = await parseWithZod(formData, {
@@ -54,8 +57,26 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 	}
 
-	// For F001, we just validate. Actual upload will be implemented in F002
-	return data({ result: submission.reply() })
+	const { videoFile } = submission.value
+
+	// Upload video to storage
+	const objectKey = await uploadVideo(userId, videoFile)
+
+	// Save video metadata to database
+	await prisma.video.create({
+		data: {
+			filename: videoFile.name,
+			url: objectKey,
+			userId,
+			// duration is nullable and can be calculated later
+		},
+	})
+
+	return redirectWithToast('/videos/new', {
+		title: 'Video uploaded',
+		description: `Successfully uploaded ${videoFile.name}`,
+		type: 'success',
+	})
 }
 
 function formatFileSize(bytes: number): string {

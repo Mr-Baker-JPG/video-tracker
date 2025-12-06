@@ -23,6 +23,7 @@ model User {
   image       UserImage?
   password    Password?
   notes       Note[]
+  videos      Video[]
   roles       Role[]
   sessions    Session[]
   connections Connection[]
@@ -183,4 +184,19 @@ model Passkey {
   transports     String? // Stored as comma-separated values
 
   @@index(userId)
+}
+
+model Video {
+  id         String    @id @default(cuid())
+  filename   String
+  url        String // Storage object key or URL
+  duration   Float?   // Duration in seconds (nullable, can be calculated later)
+  uploadedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+
+  // non-unique foreign key
+  @@index([userId])
+  @@index([userId, uploadedAt])
 }

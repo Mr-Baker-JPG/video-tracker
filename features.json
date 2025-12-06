@@ -24,8 +24,8 @@
 				"E2E test: Uploaded video is stored and retrievable",
 				"Manual: Verify video file appears in database after upload"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F003",

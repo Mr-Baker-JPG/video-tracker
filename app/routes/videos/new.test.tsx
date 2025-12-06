@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { Outlet, createRoutesStub } from 'react-router'
 import setCookieParser from 'set-cookie-parser'
-import { test, expect } from 'vitest'
+import { test, expect, vi } from 'vitest'
 import { loader as rootLoader } from '#app/root.tsx'
 import { getSessionExpirationDate, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -14,6 +14,17 @@ import { authSessionStorage } from '#app/utils/session.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { consoleWarn } from '#tests/setup/setup-test-env.ts'
 import { default as VideoUploadRoute, loader, action } from './new.tsx'
+
+// Mock the uploadVideo function
+vi.mock('#app/utils/storage.server.ts', async () => {
+	const actual = await vi.importActual('#app/utils/storage.server.ts')
+	return {
+		...actual,
+		uploadVideo: vi.fn().mockResolvedValue('users/test/videos/mock-key.mp4'),
+	}
+})
+
+import * as storageServer from '#app/utils/storage.server.ts'
 
 test('Upload component renders with file input', async () => {
 	// Suppress expected React Router warning about route configuration
@@ -329,4 +340,98 @@ test.skip('File validation accepts valid video formats', async () => {
 	expect(
 		screen.queryByText(/video file must be mp4, webm, or mov format/i),
 	).not.toBeInTheDocument()
+})
+
+test('Video model can be created in database', async () => {
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: createUser(),
+	})
+
+	const video = await prisma.video.create({
+		data: {
+			filename: 'test-video.mp4',
+			url: 'users/test/videos/test-key.mp4',
+			userId: user.id,
+		},
+	})
+
+	expect(video).toBeDefined()
+	expect(video.id).toBeDefined()
+	expect(video.filename).toBe('test-video.mp4')
+	expect(video.url).toBe('users/test/videos/test-key.mp4')
+	expect(video.userId).toBe(user.id)
+	expect(video.duration).toBeNull()
+	expect(video.uploadedAt).toBeInstanceOf(Date)
+
+	// Verify video can be retrieved
+	const retrieved = await prisma.video.findUnique({
+		where: { id: video.id },
+	})
+	expect(retrieved).toBeDefined()
+	expect(retrieved?.filename).toBe('test-video.mp4')
+})
+
+test('Video upload handler validates file type and size', async () => {
+	// Import the schema to test validation directly
+	const { VideoUploadSchema } = await import('./new.tsx')
+	
+	// Test invalid file type
+	const invalidFile = new File(['content'], 'test.txt', {
+		type: 'text/plain',
+	})
+
+	const invalidResult = VideoUploadSchema.safeParse({
+		videoFile: invalidFile,
+	})
+
+	expect(invalidResult.success).toBe(false)
+	if (!invalidResult.success) {
+		expect(
+			invalidResult.error.issues.some(
+				(issue) =>
+					issue.message === 'Video file must be mp4, webm, or mov format',
+			),
+		).toBe(true)
+	}
+
+	// Test file too large
+	const largeFile = new File(['content'], 'test.mp4', {
+		type: 'video/mp4',
+	})
+	Object.defineProperty(largeFile, 'size', {
+		value: 1024 * 1024 * 501, // 501MB
+		writable: false,
+		configurable: true,
+	})
+
+	const largeResult = VideoUploadSchema.safeParse({
+		videoFile: largeFile,
+	})
+
+	expect(largeResult.success).toBe(false)
+	if (!largeResult.success) {
+		expect(
+			largeResult.error.issues.some(
+				(issue) =>
+					issue.message === 'Video file size must be less than 500MB',
+			),
+		).toBe(true)
+	}
+
+	// Test valid file
+	const validFile = new File(['content'], 'test.mp4', {
+		type: 'video/mp4',
+	})
+	Object.defineProperty(validFile, 'size', {
+		value: 1024 * 1024 * 100, // 100MB
+		writable: false,
+		configurable: true,
+	})
+
+	const validResult = VideoUploadSchema.safeParse({
+		videoFile: validFile,
+	})
+
+	expect(validResult.success).toBe(true)
 })
