@@ -321,38 +321,54 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Implementation:**
 
-- Added `trackingObjectId` field to TrackingPoint model in Prisma schema to group points that belong to the same tracked object
-- Created database migration to add `trackingObjectId` field (assigned unique IDs to existing points)
+- Added `trackingObjectId` field to TrackingPoint model in Prisma schema to
+  group points that belong to the same tracked object
+- Created database migration to add `trackingObjectId` field (assigned unique
+  IDs to existing points)
 - Updated video player component to:
-  - Support tracking objects with automatic grouping when clicking near existing points
-  - Display all points for the active tracking object across all frames (not just current frame)
+  - Support tracking objects with automatic grouping when clicking near existing
+    points
+  - Display all points for the active tracking object across all frames (not
+    just current frame)
   - Show trajectory line connecting points when tracking an object across frames
-  - Use different visual styles for current frame points (larger, with crosshair) vs other frames (smaller, no crosshair)
+  - Use different visual styles for current frame points (larger, with
+    crosshair) vs other frames (smaller, no crosshair)
   - Automatically activate a tracking object when placing a point
-  - Allow updating existing points when clicking on the same object at the same frame
+  - Allow updating existing points when clicking on the same object at the same
+    frame
 - Updated server action to:
-  - Accept optional `trackingObjectId` parameter to continue tracking existing objects
+  - Accept optional `trackingObjectId` parameter to continue tracking existing
+    objects
   - Generate new tracking object IDs when creating new tracking sequences
-  - Update existing points if a point already exists for the same object at the same frame
+  - Update existing points if a point already exists for the same object at the
+    same frame
   - Return `trackingObjectId` in response for client-side state management
-- Updated loader to include `trackingObjectId` in tracking points and order by tracking object and frame
+- Updated loader to include `trackingObjectId` in tracking points and order by
+  tracking object and frame
 
 **Testing:**
 
 - ✅ Unit test: Multiple tracking points can be stored for same object (passing)
 - ✅ Unit test: Points are associated with correct frame numbers (passing)
-- ✅ Unit test: Tracking point can be created with x, y, frame data (updated to include trackingObjectId, passing)
-- ✅ Unit test: Point coordinates are correctly stored (updated to include trackingObjectId, passing)
-- ✅ Unit test: Multiple tracking points can be stored for same video (updated to include trackingObjectId, passing)
-- ✅ E2E test: User can navigate frames and place multiple points (added, passing)
+- ✅ Unit test: Tracking point can be created with x, y, frame data (updated to
+  include trackingObjectId, passing)
+- ✅ Unit test: Point coordinates are correctly stored (updated to include
+  trackingObjectId, passing)
+- ✅ Unit test: Multiple tracking points can be stored for same video (updated
+  to include trackingObjectId, passing)
+- ✅ E2E test: User can navigate frames and place multiple points (added,
+  passing)
 - ✅ All existing unit tests pass (passing)
 
 **Notes:**
 
 - Tracking objects are automatically created when placing the first point
-- If a user clicks near an existing point (within 50 pixels) from a previous frame, the system continues tracking that object
-- Points for the active tracking object are displayed across all frames with a trajectory line connecting them
+- If a user clicks near an existing point (within 50 pixels) from a previous
+  frame, the system continues tracking that object
+- Points for the active tracking object are displayed across all frames with a
+  trajectory line connecting them
 - Current frame points are highlighted with a larger size and crosshair
 - Points can be updated by clicking again on the same object at the same frame
 - The system handles coordinate conversion correctly for all video aspect ratios
-- All unit tests pass successfully; E2E tests have pre-existing video loading timing issues unrelated to this feature
+- All unit tests pass successfully; E2E tests have pre-existing video loading
+  timing issues unrelated to this feature

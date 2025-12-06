@@ -351,8 +351,7 @@ export function VideoPlayer({
 			}
 
 			// Create tracking point locally for immediate feedback
-			const tempTrackingObjectId =
-				trackingObjectIdToUse || `temp-${Date.now()}`
+			const tempTrackingObjectId = trackingObjectIdToUse || `temp-${Date.now()}`
 			const newPoint: TrackingPoint = {
 				id: `temp-${Date.now()}`,
 				frame,
@@ -387,7 +386,13 @@ export function VideoPlayer({
 				})
 			}
 		},
-		[videoId, currentTime, fetcher, activeTrackingObjectId, localTrackingPoints],
+		[
+			videoId,
+			currentTime,
+			fetcher,
+			activeTrackingObjectId,
+			localTrackingPoints,
+		],
 	)
 
 	// Draw tracking points on canvas
@@ -418,23 +423,23 @@ export function VideoPlayer({
 			// Don't draw if video dimensions aren't loaded yet
 			if (video.videoWidth === 0 || video.videoHeight === 0) return
 
-		// Draw points for the active tracking object across all frames
-		// If no active object, show all points for the current frame
-		const fps = 30
-		const frame = Math.floor(currentTime * fps)
+			// Draw points for the active tracking object across all frames
+			// If no active object, show all points for the current frame
+			const fps = 30
+			const frame = Math.floor(currentTime * fps)
 
-		let pointsToDraw: TrackingPoint[]
-		if (activeTrackingObjectId) {
-			// Show all points for the active tracking object
-			pointsToDraw = localTrackingPoints.filter(
-				(point) => point.trackingObjectId === activeTrackingObjectId,
-			)
-		} else {
-			// Show only points for the current frame
-			pointsToDraw = localTrackingPoints.filter(
-				(point) => point.frame === frame,
-			)
-		}
+			let pointsToDraw: TrackingPoint[]
+			if (activeTrackingObjectId) {
+				// Show all points for the active tracking object
+				pointsToDraw = localTrackingPoints.filter(
+					(point) => point.trackingObjectId === activeTrackingObjectId,
+				)
+			} else {
+				// Show only points for the current frame
+				pointsToDraw = localTrackingPoints.filter(
+					(point) => point.frame === frame,
+				)
+			}
 
 			if (pointsToDraw.length === 0) return
 

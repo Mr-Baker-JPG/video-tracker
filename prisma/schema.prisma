@@ -204,12 +204,12 @@ model Video {
 }
 
 model TrackingPoint {
-  id              String   @id @default(cuid())
-  frame           Int // Frame number
-  x               Float // X coordinate in pixels
-  y               Float // Y coordinate in pixels
+  id               String   @id @default(cuid())
+  frame            Int // Frame number
+  x                Float // X coordinate in pixels
+  y                Float // Y coordinate in pixels
   trackingObjectId String // ID to group points that belong to the same tracked object
-  createdAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   videoId String
