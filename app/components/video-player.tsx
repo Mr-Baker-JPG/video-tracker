@@ -497,7 +497,7 @@ export function VideoPlayer({
 				{videoId && (
 					<canvas
 						ref={canvasRef}
-						className="absolute left-0 top-0 cursor-crosshair rounded-lg"
+						className="absolute top-0 left-0 cursor-crosshair rounded-lg"
 						onClick={handleCanvasClick}
 						style={{ pointerEvents: 'auto' }}
 						aria-label="Tracking canvas - click to place tracking points"

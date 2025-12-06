@@ -272,12 +272,14 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Implementation:**
 
-- Added TrackingPoint model to Prisma schema with fields: id, videoId, frame, x, y, createdAt
+- Added TrackingPoint model to Prisma schema with fields: id, videoId, frame, x,
+  y, createdAt
 - Created database migration for TrackingPoint model
 - Updated video player component to:
   - Add canvas overlay on top of video element for click tracking
   - Handle clicks on canvas to place tracking points at specific frames
-  - Convert click coordinates from canvas space to video coordinate space (accounting for video scaling/letterboxing)
+  - Convert click coordinates from canvas space to video coordinate space
+    (accounting for video scaling/letterboxing)
   - Display tracking points as red circles with crosshairs on the canvas
   - Only show tracking points for the current frame
   - Store tracking points in database via server action
@@ -285,8 +287,10 @@ implementation and testing of each feature as defined in `features.json`.
   - Validate tracking point data (frame, x, y coordinates)
   - Verify user ownership of video
   - Save tracking points to database
-- Updated video route loader to fetch and pass existing tracking points to video player
-- Implemented coordinate conversion to handle video aspect ratio differences and letterboxing
+- Updated video route loader to fetch and pass existing tracking points to video
+  player
+- Implemented coordinate conversion to handle video aspect ratio differences and
+  letterboxing
 
 **Testing:**
 
@@ -299,8 +303,10 @@ implementation and testing of each feature as defined in `features.json`.
 **Notes:**
 
 - Canvas overlay is positioned absolutely over the video element
-- Tracking points are stored with pixel coordinates relative to the video's actual dimensions (not the displayed size)
-- Coordinate conversion handles both letterboxing (top/bottom) and pillarboxing (left/right) scenarios
+- Tracking points are stored with pixel coordinates relative to the video's
+  actual dimensions (not the displayed size)
+- Coordinate conversion handles both letterboxing (top/bottom) and pillarboxing
+  (left/right) scenarios
 - Points are only displayed for the current frame (calculated at 30fps)
 - Canvas automatically resizes to match video display size
 - All unit and E2E tests pass successfully
