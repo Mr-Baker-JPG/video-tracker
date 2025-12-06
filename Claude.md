@@ -99,3 +99,26 @@ This project is built on the Epic Stack template, which includes:
 - Existing authentication and user management code should be preserved
 - New video tracking features should be added alongside existing functionality
 - Respect existing code patterns and conventions
+
+## Planned Version: 2.0.0 – Classroom & Site Licensing
+
+**Status: PLANNED (Implementation will only begin when a separate activation
+command is run)**
+
+### Summary
+
+Enable classroom usage by teachers, allowing them to share videos with students
+and monitor how students are using the software. Teachers will be able to assign
+students videos to analyze and track student activity within the context of
+their class.
+
+### Main Goals
+
+- Enable teachers to use the application for classroom context with student
+  management
+- Allow teachers to monitor student usage and activity
+- Enable teachers to assign videos to students for analysis
+- Support both site licensing (classroom context) and individual licensing (no
+  class features visible)
+- Enable teachers to manage class rosters and track simple information like
+  roster data

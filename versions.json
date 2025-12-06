@@ -27,5 +27,13 @@
 			"F020"
 		],
 		"deferred_features": []
+	},
+	{
+		"label": "2.0.0",
+		"name": "Classroom & Site Licensing",
+		"status": "planned",
+		"notes": "Enable classroom usage by teachers, allowing them to share videos with students, monitor student activity, assign videos for analysis, and manage class rosters. Supports both site licensing (classroom context) and individual licensing (no class features visible).",
+		"features": [],
+		"deferred_features": []
 	}
 ]
