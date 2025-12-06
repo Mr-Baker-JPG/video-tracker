@@ -39,8 +39,8 @@ test('User can select a video file and see upload progress', async ({
 	// Look for file size pattern (number followed by unit) to avoid matching "breadcrumb"
 	await expect(page.getByText(/\d+\s*(bytes|kb|mb|gb)/i)).toBeVisible()
 
-	// Upload button should be enabled
-	const uploadButton = page.getByRole('button', { name: /upload/i })
+	// Upload button should be enabled (specifically the submit button, not the toggle)
+	const uploadButton = page.getByRole('button', { name: /^upload$/i })
 	await expect(uploadButton).toBeEnabled()
 
 	// Click upload (this will trigger form submission)
@@ -100,7 +100,11 @@ test('Uploaded video is stored and retrievable', async ({
 		buffer: videoFile.buffer,
 	})
 
-	await page.getByRole('button', { name: /upload/i }).click()
+	// Wait for file to be selected and upload button to be enabled
+	await expect(page.getByText(videoFile.name)).toBeVisible()
+	const uploadButton = page.getByRole('button', { name: /^upload$/i })
+	await expect(uploadButton).toBeEnabled()
+	await uploadButton.click()
 
 	// Wait for upload to complete
 	await expect(page).toHaveURL('/videos/new')
@@ -138,4 +142,128 @@ test('Uploaded video is stored and retrievable', async ({
 	expect(retrieved).toBeDefined()
 	expect(retrieved?.user.id).toBe(user.id)
 	expect(retrieved?.filename).toBe(videoFile.name)
+})
+
+test('User can input a YouTube URL and see validation feedback', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	await navigate('/videos/new')
+
+	await expect(page).toHaveURL('/videos/new')
+	await expect(
+		page.getByRole('heading', { name: /upload video/i }),
+	).toBeVisible()
+
+	// Switch to YouTube URL mode
+	const youtubeButton = page.getByRole('button', { name: /youtube url/i })
+	await expect(youtubeButton).toBeVisible()
+	await youtubeButton.click()
+
+	// YouTube URL input should be visible
+	const youtubeInput = page.getByLabel(/youtube url/i)
+	await expect(youtubeInput).toBeVisible()
+	await expect(youtubeInput).toHaveAttribute('placeholder', /youtube\.com/i)
+
+	// Test valid YouTube URL
+	const validUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+	await youtubeInput.fill(validUrl)
+
+	// Wait for validation feedback
+	await expect(
+		page.getByText(/valid youtube url detected/i),
+	).toBeVisible()
+	await expect(page.getByText(/video id:/i)).toBeVisible()
+	await expect(page.getByText(/dQw4w9WgXcQ/i)).toBeVisible()
+
+	// Check for placeholder message about future processing (in the form, not toast)
+	await expect(
+		page.getByText(/note:.*youtube video processing is not yet available/i),
+	).toBeVisible()
+
+	// Submit button should be enabled
+	const submitButton = page.getByRole('button', { name: /submit url/i })
+	await expect(submitButton).toBeEnabled()
+
+	// Submit the form
+	await submitButton.click()
+
+	// Should show info message about processing not being available (in toast)
+	await expect(
+		page.getByText(/youtube video detected/i),
+	).toBeVisible()
+	// Check for the toast message specifically (it appears after redirect)
+	await expect(
+		page.getByText(/youtube video processing is not yet available.*video id/i),
+	).toBeVisible()
+})
+
+test('YouTube URL validation rejects invalid URLs', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	await navigate('/videos/new')
+
+	// Switch to YouTube URL mode
+	const youtubeButton = page.getByRole('button', { name: /youtube url/i })
+	await youtubeButton.click()
+
+	const youtubeInput = page.getByLabel(/youtube url/i)
+
+	// Test invalid URL
+	await youtubeInput.fill('not a valid url')
+	// Blur to trigger validation
+	await youtubeInput.blur()
+	
+	// Wait a bit for validation to run
+	await page.waitForTimeout(1000)
+
+	// Should show validation feedback - check that the help text appears or error appears
+	// The form may show either the yellow help text or the error list
+	const hasValidationFeedback = await Promise.race([
+		page.locator('li.text-foreground-destructive').filter({ hasText: /please enter a valid youtube url/i }).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
+		page.getByText(/please enter a valid youtube url.*e\.g\./i).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
+	])
+	expect(hasValidationFeedback).toBe(true)
+
+	// Submit button should be disabled
+	const submitButton = page.getByRole('button', { name: /submit url/i })
+	await expect(submitButton).toBeDisabled()
+
+	// Test non-YouTube URL
+	await youtubeInput.fill('https://vimeo.com/123456789')
+	await youtubeInput.blur()
+	await page.waitForTimeout(1000)
+
+	const hasValidationFeedback2 = await Promise.race([
+		page.locator('li.text-foreground-destructive').filter({ hasText: /please enter a valid youtube url/i }).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
+		page.getByText(/please enter a valid youtube url.*e\.g\./i).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
+	])
+	expect(hasValidationFeedback2).toBe(true)
+
+	// Test various YouTube URL formats
+	const validUrls = [
+		'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+		'https://youtu.be/dQw4w9WgXcQ',
+		'https://youtube.com/watch?v=dQw4w9WgXcQ',
+	]
+
+	for (const url of validUrls) {
+		await youtubeInput.fill(url)
+		await page.waitForTimeout(500)
+
+		// Should show valid feedback
+		await expect(
+			page.getByText(/valid youtube url detected/i),
+		).toBeVisible()
+
+		// Submit button should be enabled
+		await expect(submitButton).toBeEnabled()
+	}
 })

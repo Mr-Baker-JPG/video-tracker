@@ -215,3 +215,44 @@ implementation and testing of each feature as defined in `features.json`.
 - Delete button is hidden by default and appears on card hover for cleaner UI
 - Video cards use group hover effects for better UX
 - All tests pass including unit and E2E tests
+
+---
+
+### F005: YouTube URL Input
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Created YouTube utility functions in `app/utils/youtube.ts` for URL validation and video ID extraction
+- Updated video upload form to support either file upload OR YouTube URL (mutually exclusive)
+- Added toggle buttons to switch between file upload and YouTube URL modes
+- Implemented YouTube URL validation that accepts:
+  - Standard URLs: `https://www.youtube.com/watch?v=VIDEO_ID`
+  - Short URLs: `https://youtu.be/VIDEO_ID`
+  - URLs with parameters: `https://www.youtube.com/watch?v=VIDEO_ID&list=...`
+  - Mobile URLs: `https://m.youtube.com/watch?v=VIDEO_ID`
+- Added real-time validation feedback:
+  - Valid URLs show a success message with extracted video ID
+  - Invalid URLs show error messages and helpful examples
+  - Placeholder message explains that YouTube video processing is not yet available
+- Updated form schema to validate YouTube URLs using superRefine
+- YouTube URL submission shows an info toast message indicating processing is not yet available
+
+**Testing:**
+
+- ✅ Unit test: YouTube URL validation accepts valid URLs (passing)
+- ✅ Unit test: YouTube URL validation rejects invalid URLs (passing)
+- ✅ Unit test: YouTube video ID extraction works correctly (passing)
+- ✅ E2E test: User can input a YouTube URL and see validation feedback (passing)
+- ✅ E2E test: YouTube URL validation rejects invalid URLs (passing)
+
+**Notes:**
+
+- YouTube video processing is not yet implemented (future feature)
+- URL validation works for all common YouTube URL formats
+- Video ID extraction is robust and handles edge cases
+- Form validation runs on blur and provides immediate feedback
+- All unit and E2E tests pass successfully

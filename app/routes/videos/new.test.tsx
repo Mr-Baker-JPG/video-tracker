@@ -383,6 +383,7 @@ test('Video upload handler validates file type and size', async () => {
 
 	const invalidResult = VideoUploadSchema.safeParse({
 		videoFile: invalidFile,
+		uploadType: 'file',
 	})
 
 	expect(invalidResult.success).toBe(false)
@@ -407,6 +408,7 @@ test('Video upload handler validates file type and size', async () => {
 
 	const largeResult = VideoUploadSchema.safeParse({
 		videoFile: largeFile,
+		uploadType: 'file',
 	})
 
 	expect(largeResult.success).toBe(false)
@@ -430,7 +432,96 @@ test('Video upload handler validates file type and size', async () => {
 
 	const validResult = VideoUploadSchema.safeParse({
 		videoFile: validFile,
+		uploadType: 'file',
 	})
 
 	expect(validResult.success).toBe(true)
+})
+
+test('YouTube URL validation accepts valid URLs', async () => {
+	const { VideoUploadSchema } = await import('./new.tsx')
+
+	// Test standard YouTube URL
+	const standardUrlResult = VideoUploadSchema.safeParse({
+		uploadType: 'youtube',
+		youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+	})
+	expect(standardUrlResult.success).toBe(true)
+
+	// Test short YouTube URL
+	const shortUrlResult = VideoUploadSchema.safeParse({
+		uploadType: 'youtube',
+		youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ',
+	})
+	expect(shortUrlResult.success).toBe(true)
+
+	// Test YouTube URL with parameters
+	const urlWithParamsResult = VideoUploadSchema.safeParse({
+		uploadType: 'youtube',
+		youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLxyz',
+	})
+	expect(urlWithParamsResult.success).toBe(true)
+})
+
+test('YouTube URL validation rejects invalid URLs', async () => {
+	const { VideoUploadSchema } = await import('./new.tsx')
+
+	// Test empty URL
+	const emptyResult = VideoUploadSchema.safeParse({
+		uploadType: 'youtube',
+		youtubeUrl: '',
+	})
+	expect(emptyResult.success).toBe(false)
+	if (!emptyResult.success) {
+		expect(
+			emptyResult.error.issues.some(
+				(issue) => issue.message === 'YouTube URL is required',
+			),
+		).toBe(true)
+	}
+
+	// Test invalid URL
+	const invalidResult = VideoUploadSchema.safeParse({
+		uploadType: 'youtube',
+		youtubeUrl: 'not a valid url',
+	})
+	expect(invalidResult.success).toBe(false)
+	if (!invalidResult.success) {
+		expect(
+			invalidResult.error.issues.some(
+				(issue) => issue.message === 'Please enter a valid YouTube URL',
+			),
+		).toBe(true)
+	}
+
+	// Test non-YouTube URL
+	const nonYouTubeResult = VideoUploadSchema.safeParse({
+		uploadType: 'youtube',
+		youtubeUrl: 'https://vimeo.com/123456789',
+	})
+	expect(nonYouTubeResult.success).toBe(false)
+})
+
+test('YouTube video ID extraction works correctly', async () => {
+	const { extractYouTubeVideoId } = await import('#app/utils/youtube.ts')
+
+	// Test standard URL
+	expect(
+		extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+	).toBe('dQw4w9WgXcQ')
+
+	// Test short URL
+	expect(extractYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ')).toBe(
+		'dQw4w9WgXcQ',
+	)
+
+	// Test URL with parameters
+	expect(
+		extractYouTubeVideoId(
+			'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLxyz',
+		),
+	).toBe('dQw4w9WgXcQ')
+
+	// Test invalid URL
+	expect(extractYouTubeVideoId('not a url')).toBe(null)
 })
