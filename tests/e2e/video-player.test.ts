@@ -422,3 +422,128 @@ test('User can navigate frames and place multiple points', async ({
 	const sortedFrames = [...frames].sort((a, b) => a - b)
 	expect(sortedFrames[0]).toBeGreaterThanOrEqual(0)
 })
+
+test('User can draw a scale line and input distance', async ({
+	page,
+	login,
+	navigate,
+}) => {
+	const user = await login()
+
+	// First, upload a video
+	await navigate('/videos/new')
+
+	// Use actual video file for more realistic testing
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	// File info should be displayed
+	await expect(page.getByText(videoFileName)).toBeVisible()
+
+	// Click upload submit button (not the toggle button)
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+
+	// Wait for upload to complete
+	await expect(page).toHaveURL('/videos/new')
+
+	// Wait for video to be stored in database (with retry)
+	let video = null
+	for (let i = 0; i < 20; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+		})
+		if (video) break
+		await page.waitForTimeout(200) // Wait 200ms before retrying
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Upload a video
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(
+		path.resolve(__dirname, './data/WhichLandsFirst.mp4'),
+	)
+
+	// Wait for upload to complete
+	await page.waitForURL(/\/videos\/\w+/, { timeout: 30000 })
+	const videoIdMatch = page.url().match(/\/videos\/(\w+)/)
+	const videoId = videoIdMatch?.[1]
+	expect(videoId).toBeDefined()
+
+	// Wait for video to load
+	const video = page.locator('video')
+	await expect(video).toBeVisible({ timeout: 10000 })
+	await page.waitForTimeout(2000) // Wait for video metadata to load
+
+	// Click "Set Scale" button
+	const setScaleButton = page.getByRole('button', { name: /set scale/i })
+	await setScaleButton.click()
+
+	// Wait for scale calibration mode to activate
+	await expect(
+		page.getByText(/click on the video to set the start point/i),
+	).toBeVisible()
+
+	// Get canvas element
+	const canvas = page.locator('canvas').first()
+	await expect(canvas).toBeVisible()
+	const canvasRect = await canvas.boundingBox()
+	expect(canvasRect).not.toBeNull()
+	if (!canvasRect) throw new Error('Canvas not found')
+
+	// Click first point (start of scale line)
+	const startX = canvasRect.width * 0.2
+	const startY = canvasRect.height * 0.5
+	await canvas.click({ position: { x: startX, y: startY } })
+	await page.waitForTimeout(300)
+
+	// Should now ask for end point
+	await expect(
+		page.getByText(/click on the video to set the end point/i),
+	).toBeVisible()
+
+	// Click second point (end of scale line)
+	const endX = canvasRect.width * 0.8
+	const endY = canvasRect.height * 0.5
+	await canvas.click({ position: { x: endX, y: endY } })
+	await page.waitForTimeout(300)
+
+	// Should now show input for distance
+	await expect(
+		page.getByText(/enter the real-world distance in meters/i),
+	).toBeVisible()
+
+	const distanceInput = page.getByLabel(/distance \(meters\)/i)
+	await expect(distanceInput).toBeVisible()
+	await distanceInput.fill('1.0')
+
+	// Click "Save Scale" button
+	const saveButton = page.getByRole('button', { name: /save scale/i })
+	await expect(saveButton).not.toBeDisabled()
+	await saveButton.click()
+	await page.waitForTimeout(500)
+
+	// Verify scale was saved in database
+	const scale = await prisma.videoScale.findUnique({
+		where: { videoId: videoId! },
+	})
+
+	expect(scale).toBeDefined()
+	expect(scale?.distanceMeters).toBe(1.0)
+	expect(scale?.pixelsPerMeter).toBeGreaterThan(0)
+
+	// Verify scale line is displayed (green line)
+	await expect(page.getByText(/distance: 1\.0 m/i)).toBeVisible({
+		timeout: 2000,
+	})
+})

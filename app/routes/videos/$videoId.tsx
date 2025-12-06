@@ -17,6 +17,16 @@ const CreateTrackingPointSchema = z.object({
 	trackingObjectId: z.string().optional(), // Optional: if provided, continue tracking that object
 })
 
+const SaveScaleSchema = z.object({
+	intent: z.literal('save-scale'),
+	videoId: z.string(),
+	startX: z.coerce.number().min(0),
+	startY: z.coerce.number().min(0),
+	endX: z.coerce.number().min(0),
+	endY: z.coerce.number().min(0),
+	distanceMeters: z.coerce.number().positive(),
+})
+
 export async function loader({ params, request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 
@@ -51,15 +61,122 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 		orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
 	})
 
+	const scale = await prisma.videoScale.findUnique({
+		where: { videoId: video.id },
+		select: {
+			id: true,
+			startX: true,
+			startY: true,
+			endX: true,
+			endY: true,
+			distanceMeters: true,
+			pixelsPerMeter: true,
+		},
+	})
+
 	const videoSrc = getVideoSrc(video.url)
 
-	return { video, videoSrc, trackingPoints }
+	return { video, videoSrc, trackingPoints, scale }
 }
 
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 
+	const intent = formData.get('intent')
+
+	if (intent === 'save-scale') {
+		const submission = parseWithZod(formData, {
+			schema: SaveScaleSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId, startX, startY, endX, endY, distanceMeters } =
+			submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to set scale for this video',
+			{ status: 403 },
+		)
+
+		// Calculate pixel length of the line
+		const pixelLength = Math.sqrt(
+			Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2),
+		)
+
+		// Calculate pixels per meter
+		const pixelsPerMeter = pixelLength / distanceMeters
+
+		// Check if scale already exists
+		const existingScale = await prisma.videoScale.findUnique({
+			where: { videoId },
+		})
+
+		let scale
+		if (existingScale) {
+			// Update existing scale
+			scale = await prisma.videoScale.update({
+				where: { id: existingScale.id },
+				data: {
+					startX,
+					startY,
+					endX,
+					endY,
+					distanceMeters,
+					pixelsPerMeter,
+				},
+				select: {
+					id: true,
+					startX: true,
+					startY: true,
+					endX: true,
+					endY: true,
+					distanceMeters: true,
+					pixelsPerMeter: true,
+				},
+			})
+		} else {
+			// Create new scale
+			scale = await prisma.videoScale.create({
+				data: {
+					videoId,
+					startX,
+					startY,
+					endX,
+					endY,
+					distanceMeters,
+					pixelsPerMeter,
+				},
+				select: {
+					id: true,
+					startX: true,
+					startY: true,
+					endX: true,
+					endY: true,
+					distanceMeters: true,
+					pixelsPerMeter: true,
+				},
+			})
+		}
+
+		return data({ success: true, scale })
+	}
+
+	// Handle tracking point creation (existing logic)
 	const submission = parseWithZod(formData, {
 		schema: CreateTrackingPointSchema,
 	})
@@ -150,6 +267,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 				src={loaderData.videoSrc}
 				videoId={loaderData.video.id}
 				trackingPoints={loaderData.trackingPoints}
+				scale={loaderData.scale}
 			/>
 		</div>
 	)

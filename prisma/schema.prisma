@@ -197,6 +197,7 @@ model Video {
   userId String
 
   trackingPoints TrackingPoint[]
+  scale          VideoScale?
 
   // non-unique foreign key
   @@index([userId])
@@ -219,4 +220,21 @@ model TrackingPoint {
   @@index([videoId, frame])
   @@index([videoId, trackingObjectId])
   @@index([videoId, trackingObjectId, frame])
+}
+
+model VideoScale {
+  id            String   @id @default(cuid())
+  videoId       String   @unique
+  startX        Float // Start point X coordinate in pixels
+  startY        Float // Start point Y coordinate in pixels
+  endX          Float // End point X coordinate in pixels
+  endY          Float // End point Y coordinate in pixels
+  distanceMeters Float // Real-world distance in meters
+  pixelsPerMeter Float // Calculated conversion ratio: pixel length / distanceMeters
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([videoId])
 }

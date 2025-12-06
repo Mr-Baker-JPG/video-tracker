@@ -104,8 +104,8 @@
 				"E2E test: User can draw a scale line and input distance",
 				"Manual: Verify scale line drawing works smoothly on video"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F009",

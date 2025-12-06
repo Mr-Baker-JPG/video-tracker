@@ -372,3 +372,47 @@ implementation and testing of each feature as defined in `features.json`.
 - The system handles coordinate conversion correctly for all video aspect ratios
 - All unit tests pass successfully; E2E tests have pre-existing video loading
   timing issues unrelated to this feature
+
+---
+
+### F008: Scale Calibration UI
+
+**Date:** 2025-12-06
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Added VideoScale model to Prisma schema with fields: id, videoId, startX, startY,
+  endX, endY, distanceMeters, pixelsPerMeter, createdAt, updatedAt
+- Created database migration for VideoScale model
+- Updated video player component to:
+  - Add scale calibration UI section with "Set Scale" button
+  - Support scale calibration mode that allows drawing a line by clicking two
+    points on the video canvas
+  - Display scale line in green color with endpoints when calibration is active
+  - Show input field for entering real-world distance in meters
+  - Calculate pixels-to-meters conversion ratio automatically
+  - Display saved scale information (distance and ratio) when scale is set
+- Updated video route to:
+  - Load scale data from database in loader
+  - Handle save-scale action that validates and saves scale calibration data
+  - Calculate pixel length and pixelsPerMeter ratio on the server
+- Scale line is displayed persistently on the video canvas after saving
+
+**Testing:**
+
+- ✅ Unit test: Scale calibration calculates pixels-to-meters ratio (passing)
+- ✅ Unit test: Scale data is stored correctly (passing)
+- ✅ E2E test: User can draw a scale line and input distance (passing)
+- ✅ All existing unit tests pass (passing)
+
+**Notes:**
+
+- Scale calibration mode disables tracking point placement while active
+- Users can update existing scale by clicking "Update Scale" button
+- Scale line coordinates are stored in video pixel space (not canvas space)
+- The pixelsPerMeter ratio is calculated automatically from the line length and
+  distance input
+- Scale data is stored per video and can be used for future features like
+  converting tracking point coordinates to real-world distances

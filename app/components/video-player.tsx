@@ -2,6 +2,8 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useFetcher } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { Input } from '#app/components/ui/input.tsx'
+import { Label } from '#app/components/ui/label.tsx'
 
 interface TrackingPoint {
 	id: string
@@ -11,11 +13,22 @@ interface TrackingPoint {
 	trackingObjectId: string
 }
 
+interface Scale {
+	id: string
+	startX: number
+	startY: number
+	endX: number
+	endY: number
+	distanceMeters: number
+	pixelsPerMeter: number
+}
+
 interface VideoPlayerProps {
 	src: string
 	className?: string
 	videoId?: string
 	trackingPoints?: TrackingPoint[]
+	scale?: Scale | null
 }
 
 function formatTime(seconds: number): string {
@@ -31,6 +44,7 @@ export function VideoPlayer({
 	className,
 	videoId,
 	trackingPoints = [],
+	scale: initialScale = null,
 }: VideoPlayerProps) {
 	const videoRef = useRef<HTMLVideoElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -49,6 +63,12 @@ export function VideoPlayer({
 	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
 		string | null
 	>(null)
+	// Scale calibration state
+	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
+	const [scaleStartPoint, setScaleStartPoint] = useState<{ x: number; y: number } | null>(null)
+	const [scaleEndPoint, setScaleEndPoint] = useState<{ x: number; y: number } | null>(null)
+	const [distanceMeters, setDistanceMeters] = useState<string>('')
+	const [scale, setScale] = useState<Scale | null>(initialScale)
 
 	const handlePlayPause = useCallback(() => {
 		const video = videoRef.current
@@ -284,22 +304,13 @@ export function VideoPlayer({
 		}
 	}, [trackingPoints])
 
-	// Handle canvas click to place tracking point
-	const handleCanvasClick = useCallback(
-		(e: React.MouseEvent<HTMLCanvasElement>) => {
-			if (!videoId || !canvasRef.current || !videoRef.current) return
-
+	// Convert canvas coordinates to video coordinates
+	const convertCanvasToVideoCoords = useCallback(
+		(canvasX: number, canvasY: number) => {
 			const canvas = canvasRef.current
 			const video = videoRef.current
-			const rect = canvas.getBoundingClientRect()
+			if (!canvas || !video) return null
 
-			// Get click position relative to canvas
-			const canvasX = e.clientX - rect.left
-			const canvasY = e.clientY - rect.top
-
-			// Convert to video coordinates (accounting for video scaling)
-			// The video might be scaled to fit the container, so we need to calculate
-			// the actual video dimensions vs displayed dimensions
 			const videoAspect = video.videoWidth / video.videoHeight
 			const canvasAspect = canvas.width / canvas.height
 
@@ -325,6 +336,54 @@ export function VideoPlayer({
 			// Ensure coordinates are within video bounds
 			x = Math.max(0, Math.min(x, video.videoWidth))
 			y = Math.max(0, Math.min(y, video.videoHeight))
+
+			return { x, y }
+		},
+		[],
+	)
+
+	// Handle canvas click to place tracking point or draw scale line
+	const handleCanvasClick = useCallback(
+		(e: React.MouseEvent<HTMLCanvasElement>) => {
+			if (!videoId || !canvasRef.current || !videoRef.current) return
+
+			// Handle scale calibration mode
+			if (isScaleCalibrationMode) {
+				const canvas = canvasRef.current
+				const rect = canvas.getBoundingClientRect()
+				const canvasX = e.clientX - rect.left
+				const canvasY = e.clientY - rect.top
+
+				const coords = convertCanvasToVideoCoords(canvasX, canvasY)
+				if (!coords) return
+
+				if (!scaleStartPoint) {
+					// First click - set start point
+					setScaleStartPoint(coords)
+				} else if (!scaleEndPoint) {
+					// Second click - set end point
+					setScaleEndPoint(coords)
+				} else {
+					// Reset and start over
+					setScaleStartPoint(coords)
+					setScaleEndPoint(null)
+				}
+				return
+			}
+
+			// Handle tracking point placement (existing logic)
+			const canvas = canvasRef.current
+			if (!canvas) return
+
+			const rect = canvas.getBoundingClientRect()
+
+			// Get click position relative to canvas
+			const canvasX = e.clientX - rect.left
+			const canvasY = e.clientY - rect.top
+
+			const coords = convertCanvasToVideoCoords(canvasX, canvasY)
+			if (!coords) return
+			const { x, y } = coords
 
 			// Calculate current frame (assuming 30 fps)
 			const fps = 30
@@ -392,8 +451,55 @@ export function VideoPlayer({
 			fetcher,
 			activeTrackingObjectId,
 			localTrackingPoints,
+			isScaleCalibrationMode,
+			convertCanvasToVideoCoords,
+			scaleStartPoint,
+			scaleEndPoint,
 		],
 	)
+
+	// Handle saving scale calibration
+	const handleSaveScale = useCallback(() => {
+		if (!videoId || !scaleStartPoint || !scaleEndPoint || !distanceMeters) return
+
+		const distance = parseFloat(distanceMeters)
+		if (isNaN(distance) || distance <= 0) return
+
+		const formData = new FormData()
+		formData.append('intent', 'save-scale')
+		formData.append('videoId', videoId)
+		formData.append('startX', scaleStartPoint.x.toString())
+		formData.append('startY', scaleStartPoint.y.toString())
+		formData.append('endX', scaleEndPoint.x.toString())
+		formData.append('endY', scaleEndPoint.y.toString())
+		formData.append('distanceMeters', distance.toString())
+
+		if (fetcher) {
+			void fetcher.submit(formData, {
+				method: 'POST',
+			})
+		}
+	}, [videoId, scaleStartPoint, scaleEndPoint, distanceMeters, fetcher])
+
+	// Reset scale calibration mode
+	const handleCancelScale = useCallback(() => {
+		setIsScaleCalibrationMode(false)
+		setScaleStartPoint(null)
+		setScaleEndPoint(null)
+		setDistanceMeters('')
+	}, [])
+
+	// Update scale when fetcher returns new data
+	useEffect(() => {
+		if (fetcher?.data?.success && fetcher.data?.scale) {
+			const newScale = fetcher.data.scale as Scale
+			setScale(newScale)
+			setIsScaleCalibrationMode(false)
+			setScaleStartPoint(null)
+			setScaleEndPoint(null)
+			setDistanceMeters('')
+		}
+	}, [fetcher?.data])
 
 	// Draw tracking points on canvas
 	useEffect(() => {
@@ -416,52 +522,107 @@ export function VideoPlayer({
 
 		updateCanvasSize()
 
-		// Redraw when video size changes or tracking points change
-		const drawPoints = () => {
-			ctx.clearRect(0, 0, canvas.width, canvas.height)
+			// Redraw when video size changes or tracking points change
+			const drawPoints = () => {
+				ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-			// Don't draw if video dimensions aren't loaded yet
-			if (video.videoWidth === 0 || video.videoHeight === 0) return
+				// Don't draw if video dimensions aren't loaded yet
+				if (video.videoWidth === 0 || video.videoHeight === 0) return
 
-			// Draw points for the active tracking object across all frames
-			// If no active object, show all points for the current frame
-			const fps = 30
-			const frame = Math.floor(currentTime * fps)
+				// Calculate scaling factor to convert video coordinates to canvas coordinates
+				const videoAspect = video.videoWidth / video.videoHeight
+				const canvasAspect = canvas.width / canvas.height
 
-			let pointsToDraw: TrackingPoint[]
-			if (activeTrackingObjectId) {
-				// Show all points for the active tracking object
-				pointsToDraw = localTrackingPoints.filter(
-					(point) => point.trackingObjectId === activeTrackingObjectId,
-				)
-			} else {
-				// Show only points for the current frame
-				pointsToDraw = localTrackingPoints.filter(
-					(point) => point.frame === frame,
-				)
-			}
+				let canvasScale: number
+				let offsetX = 0
+				let offsetY = 0
+
+				if (videoAspect > canvasAspect) {
+					// Video is wider - letterboxing on top/bottom
+					canvasScale = canvas.width / video.videoWidth
+					const scaledHeight = video.videoHeight * canvasScale
+					offsetY = (canvas.height - scaledHeight) / 2
+				} else {
+					// Video is taller - letterboxing on left/right
+					canvasScale = canvas.height / video.videoHeight
+					const scaledWidth = video.videoWidth * canvasScale
+					offsetX = (canvas.width - scaledWidth) / 2
+				}
+
+				// Draw scale line if it exists
+				if (scale) {
+					ctx.strokeStyle = '#00ff00'
+					ctx.lineWidth = 2
+					ctx.beginPath()
+					const canvasStartX = scale.startX * canvasScale + offsetX
+					const canvasStartY = scale.startY * canvasScale + offsetY
+					const canvasEndX = scale.endX * canvasScale + offsetX
+					const canvasEndY = scale.endY * canvasScale + offsetY
+					ctx.moveTo(canvasStartX, canvasStartY)
+					ctx.lineTo(canvasEndX, canvasEndY)
+					ctx.stroke()
+					// Draw endpoints
+					ctx.fillStyle = '#00ff00'
+					ctx.beginPath()
+					ctx.arc(canvasStartX, canvasStartY, 4, 0, 2 * Math.PI)
+					ctx.fill()
+					ctx.beginPath()
+					ctx.arc(canvasEndX, canvasEndY, 4, 0, 2 * Math.PI)
+					ctx.fill()
+				}
+
+				// Draw scale line being drawn (if in calibration mode)
+				if (isScaleCalibrationMode && scaleStartPoint) {
+					ctx.strokeStyle = '#00ff00'
+					ctx.lineWidth = 2
+					ctx.setLineDash([5, 5]) // Dashed line for in-progress
+					ctx.beginPath()
+					const canvasStartX = scaleStartPoint.x * canvasScale + offsetX
+					const canvasStartY = scaleStartPoint.y * canvasScale + offsetY
+					ctx.moveTo(canvasStartX, canvasStartY)
+					if (scaleEndPoint) {
+						const canvasEndX = scaleEndPoint.x * canvasScale + offsetX
+						const canvasEndY = scaleEndPoint.y * canvasScale + offsetY
+						ctx.lineTo(canvasEndX, canvasEndY)
+					} else {
+						// Draw line from start to current mouse position (if available)
+						ctx.lineTo(canvasStartX + 50, canvasStartY + 50) // Placeholder
+					}
+					ctx.stroke()
+					ctx.setLineDash([]) // Reset dash
+					// Draw start point
+					ctx.fillStyle = '#00ff00'
+					ctx.beginPath()
+					ctx.arc(canvasStartX, canvasStartY, 4, 0, 2 * Math.PI)
+					ctx.fill()
+					if (scaleEndPoint) {
+						const canvasEndX = scaleEndPoint.x * canvasScale + offsetX
+						const canvasEndY = scaleEndPoint.y * canvasScale + offsetY
+						ctx.beginPath()
+						ctx.arc(canvasEndX, canvasEndY, 4, 0, 2 * Math.PI)
+						ctx.fill()
+					}
+				}
+
+				// Draw points for the active tracking object across all frames
+				// If no active object, show all points for the current frame
+				const fps = 30
+				const frame = Math.floor(currentTime * fps)
+
+				let pointsToDraw: TrackingPoint[]
+				if (activeTrackingObjectId) {
+					// Show all points for the active tracking object
+					pointsToDraw = localTrackingPoints.filter(
+						(point) => point.trackingObjectId === activeTrackingObjectId,
+					)
+				} else {
+					// Show only points for the current frame
+					pointsToDraw = localTrackingPoints.filter(
+						(point) => point.frame === frame,
+					)
+				}
 
 			if (pointsToDraw.length === 0) return
-
-			// Calculate scaling factor to convert video coordinates to canvas coordinates
-			const videoAspect = video.videoWidth / video.videoHeight
-			const canvasAspect = canvas.width / canvas.height
-
-			let scale: number
-			let offsetX = 0
-			let offsetY = 0
-
-			if (videoAspect > canvasAspect) {
-				// Video is wider - letterboxing on top/bottom
-				scale = canvas.width / video.videoWidth
-				const scaledHeight = video.videoHeight * scale
-				offsetY = (canvas.height - scaledHeight) / 2
-			} else {
-				// Video is taller - letterboxing on left/right
-				scale = canvas.height / video.videoHeight
-				const scaledWidth = video.videoWidth * scale
-				offsetX = (canvas.width - scaledWidth) / 2
-			}
 
 			// Draw trajectory line connecting points (if multiple points)
 			if (pointsToDraw.length > 1 && activeTrackingObjectId) {
@@ -470,8 +631,8 @@ export function VideoPlayer({
 				ctx.beginPath()
 				const sortedPoints = [...pointsToDraw].sort((a, b) => a.frame - b.frame)
 				sortedPoints.forEach((point, index) => {
-					const canvasX = point.x * scale + offsetX
-					const canvasY = point.y * scale + offsetY
+					const canvasX = point.x * canvasScale + offsetX
+					const canvasY = point.y * canvasScale + offsetY
 					if (index === 0) {
 						ctx.moveTo(canvasX, canvasY)
 					} else {
@@ -483,8 +644,8 @@ export function VideoPlayer({
 
 			pointsToDraw.forEach((point) => {
 				// Convert video coordinates to canvas coordinates
-				const canvasX = point.x * scale + offsetX
-				const canvasY = point.y * scale + offsetY
+				const canvasX = point.x * canvasScale + offsetX
+				const canvasY = point.y * canvasScale + offsetY
 
 				// Use different color/style for current frame point
 				const isCurrentFrame = point.frame === frame
@@ -533,7 +694,15 @@ export function VideoPlayer({
 			resizeObserver.disconnect()
 			video.removeEventListener('loadedmetadata', handleVideoLoaded)
 		}
-	}, [currentTime, localTrackingPoints, activeTrackingObjectId])
+	}, [
+		currentTime,
+		localTrackingPoints,
+		activeTrackingObjectId,
+		scale,
+		isScaleCalibrationMode,
+		scaleStartPoint,
+		scaleEndPoint,
+	])
 
 	// Update local tracking points when fetcher returns new data
 	useEffect(() => {
@@ -597,7 +766,11 @@ export function VideoPlayer({
 						className="absolute top-0 left-0 cursor-crosshair rounded-lg"
 						onClick={handleCanvasClick}
 						style={{ pointerEvents: 'auto' }}
-						aria-label="Tracking canvas - click to place tracking points"
+						aria-label={
+							isScaleCalibrationMode
+								? 'Scale calibration canvas - click to draw scale line'
+								: 'Tracking canvas - click to place tracking points'
+						}
 					/>
 				)}
 			</div>
@@ -718,6 +891,86 @@ export function VideoPlayer({
 					</div>
 				</div>
 			</div>
+
+			{/* Scale Calibration UI */}
+			{videoId && (
+				<div className="mt-4 rounded-lg border p-4">
+					<div className="flex items-center justify-between mb-3">
+						<h3 className="text-sm font-semibold">Scale Calibration</h3>
+						{!isScaleCalibrationMode && (
+							<Button
+								type="button"
+								variant={scale ? 'outline' : 'default'}
+								size="sm"
+								onClick={() => setIsScaleCalibrationMode(true)}
+							>
+								{scale ? 'Update Scale' : 'Set Scale'}
+							</Button>
+						)}
+					</div>
+
+					{scale && !isScaleCalibrationMode && (
+						<div className="text-muted-foreground text-sm space-y-1">
+							<div>Distance: {scale.distanceMeters} m</div>
+							<div>Ratio: {scale.pixelsPerMeter.toFixed(2)} px/m</div>
+						</div>
+					)}
+
+					{isScaleCalibrationMode && (
+						<div className="space-y-3">
+							<div className="text-muted-foreground text-sm">
+								{!scaleStartPoint
+									? 'Click on the video to set the start point of your scale line'
+									: !scaleEndPoint
+										? 'Click on the video to set the end point of your scale line'
+										: 'Enter the real-world distance in meters'}
+							</div>
+
+							{scaleStartPoint && scaleEndPoint && (
+								<div className="space-y-2">
+									<Label htmlFor="distanceMeters">
+										Distance (meters)
+									</Label>
+									<Input
+										id="distanceMeters"
+										type="number"
+										step="0.01"
+										min="0.01"
+										value={distanceMeters}
+										onChange={(e) => setDistanceMeters(e.target.value)}
+										placeholder="e.g., 1.0"
+									/>
+								</div>
+							)}
+
+							<div className="flex gap-2">
+								<Button
+									type="button"
+									variant="default"
+									size="sm"
+									onClick={handleSaveScale}
+									disabled={
+										!scaleStartPoint ||
+										!scaleEndPoint ||
+										!distanceMeters ||
+										parseFloat(distanceMeters) <= 0
+									}
+								>
+									Save Scale
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={handleCancelScale}
+								>
+									Cancel
+								</Button>
+							</div>
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	)
 }
