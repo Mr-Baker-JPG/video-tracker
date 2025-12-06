@@ -15,7 +15,9 @@ test('Video player component renders with controls', () => {
 	expect(video?.getAttribute('src')).toBe('/test-video.mp4')
 
 	// Check controls exist
-	expect(screen.getByLabelText(/play|pause/i)).toBeInTheDocument()
+	expect(screen.getByLabelText(/play|pause|restart/i)).toBeInTheDocument()
+	expect(screen.getByLabelText('Seek backward 3 seconds')).toBeInTheDocument()
+	expect(screen.getByLabelText('Seek forward 3 seconds')).toBeInTheDocument()
 	expect(screen.getByLabelText('Previous frame')).toBeInTheDocument()
 	expect(screen.getByLabelText('Next frame')).toBeInTheDocument()
 
@@ -23,6 +25,7 @@ test('Video player component renders with controls', () => {
 	const seekBar = screen.getByLabelText('Video seek')
 	expect(seekBar).toBeInTheDocument()
 	expect(seekBar).toHaveAttribute('type', 'range')
+	expect(seekBar).toHaveAttribute('step', '0.001')
 })
 
 test('Play/pause functionality works', async () => {
@@ -36,7 +39,7 @@ test('Play/pause functionality works', async () => {
 	})
 
 	const video = container.querySelector('video') as HTMLVideoElement
-	const playPauseButton = screen.getByLabelText(/play|pause/i)
+	const playPauseButton = screen.getByLabelText(/play|pause|restart/i)
 
 	// Set up video properties
 	Object.defineProperty(video, 'paused', {
@@ -47,10 +50,13 @@ test('Play/pause functionality works', async () => {
 		},
 	})
 
+	let currentTimeValue = 0
 	Object.defineProperty(video, 'currentTime', {
 		configurable: true,
-		writable: true,
-		value: 0,
+		get: () => currentTimeValue,
+		set: (value) => {
+			currentTimeValue = value
+		},
 	})
 
 	Object.defineProperty(video, 'duration', {
@@ -64,9 +70,10 @@ test('Play/pause functionality works', async () => {
 	video.pause = vi.fn()
 
 	video._paused = true
+	currentTimeValue = 0
 
-	// Initially paused, button should say "Play"
-	expect(playPauseButton).toHaveTextContent('Play')
+	// Initially paused, button should have "Play" aria-label
+	expect(playPauseButton).toHaveAttribute('aria-label', 'Play')
 
 	// Click to play - this should call video.play()
 	await user.click(playPauseButton)
@@ -76,7 +83,7 @@ test('Play/pause functionality works', async () => {
 	video.dispatchEvent(new Event('play'))
 
 	await waitFor(() => {
-		expect(playPauseButton).toHaveTextContent('Pause')
+		expect(playPauseButton).toHaveAttribute('aria-label', 'Pause')
 	})
 
 	// Click to pause - this should call video.pause()
@@ -87,6 +94,115 @@ test('Play/pause functionality works', async () => {
 	video.dispatchEvent(new Event('pause'))
 
 	await waitFor(() => {
-		expect(playPauseButton).toHaveTextContent('Play')
+		expect(playPauseButton).toHaveAttribute('aria-label', 'Play')
 	})
+})
+
+test('Reload button appears when at the end of video', async () => {
+	const user = userEvent.setup()
+	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+
+	await waitFor(() => {
+		const video = container.querySelector('video')
+		expect(video).toBeInTheDocument()
+	})
+
+	const video = container.querySelector('video') as HTMLVideoElement
+	const playPauseButton = screen.getByLabelText(/play|pause|restart/i)
+
+	let currentTimeValue = 0
+	Object.defineProperty(video, 'paused', {
+		configurable: true,
+		get: () => true,
+	})
+
+	Object.defineProperty(video, 'currentTime', {
+		configurable: true,
+		get: () => currentTimeValue,
+		set: (value) => {
+			currentTimeValue = value
+		},
+	})
+
+	Object.defineProperty(video, 'duration', {
+		configurable: true,
+		writable: true,
+		value: 100,
+	})
+
+	video.play = vi.fn().mockResolvedValue(undefined)
+	video.pause = vi.fn()
+
+	// Simulate being at the end of the video
+	currentTimeValue = 100
+	// Trigger a re-render by updating the component state
+	video.dispatchEvent(new Event('timeupdate'))
+
+	await waitFor(() => {
+		expect(playPauseButton).toHaveAttribute('aria-label', 'Restart')
+	})
+
+	// Click reload should restart from beginning
+	await user.click(playPauseButton)
+
+	await waitFor(() => {
+		expect(video.currentTime).toBe(0)
+	})
+})
+
+test('3-second seek buttons work', async () => {
+	const user = userEvent.setup()
+	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+
+	await waitFor(() => {
+		const video = container.querySelector('video')
+		expect(video).toBeInTheDocument()
+	})
+
+	const video = container.querySelector('video') as HTMLVideoElement
+	let currentTimeValue = 50
+	Object.defineProperty(video, 'paused', {
+		configurable: true,
+		get: () => true,
+	})
+
+	Object.defineProperty(video, 'currentTime', {
+		configurable: true,
+		get: () => currentTimeValue,
+		set: (value) => {
+			currentTimeValue = value
+		},
+	})
+
+	Object.defineProperty(video, 'duration', {
+		configurable: true,
+		writable: true,
+		value: 100,
+	})
+
+	video.pause = vi.fn()
+
+	const seekBackwardButton = screen.getByLabelText('Seek backward 3 seconds')
+	const seekForwardButton = screen.getByLabelText('Seek forward 3 seconds')
+
+	// Test backward seek
+	await user.click(seekBackwardButton)
+	expect(currentTimeValue).toBe(47) // 50 - 3
+
+	// Test forward seek
+	await user.click(seekForwardButton)
+	expect(currentTimeValue).toBe(50) // 47 + 3
+})
+
+test('Time display includes milliseconds', () => {
+	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+
+	// Time display should show format with milliseconds (MM:SS.mmm)
+	// The time is split across multiple spans, so check the parent container
+	const timeDisplayContainer = container.querySelector(
+		'.text-muted-foreground.text-sm',
+	)
+	expect(timeDisplayContainer).toBeInTheDocument()
+	expect(timeDisplayContainer?.textContent).toMatch(/\d+:\d+\.\d{3}/)
+	expect(timeDisplayContainer?.textContent).toContain('/')
 })

@@ -1,5 +1,5 @@
-import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -63,44 +63,84 @@ test('User can play, pause, and seek through video', async ({
 	).toBeVisible()
 
 	// Check that video element exists
-	const videoElement = page.locator('video')
+	const videoElement = page.getByLabel('Video content')
 	await expect(videoElement).toBeVisible()
 
+	// Wait for video metadata to load first (duration must be available)
+	// This ensures the video file is actually loaded and ready
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
+
 	// Check that controls are present
-	await expect(page.getByLabel(/play|pause/i)).toBeVisible()
+	const playPauseButton = page.getByLabel(/play|pause|restart/i)
+	await expect(playPauseButton).toBeVisible()
+	await expect(page.getByLabel('Seek backward 3 seconds')).toBeVisible()
+	await expect(page.getByLabel('Seek forward 3 seconds')).toBeVisible()
 	await expect(page.getByLabel('Previous frame')).toBeVisible()
 	await expect(page.getByLabel('Next frame')).toBeVisible()
-	await expect(page.getByLabel('Video seek')).toBeVisible()
+	const seekBar = page.getByLabel('Video seek')
+	await expect(seekBar).toBeVisible()
 
-	// Test play/pause button
-	const playPauseButton = page.getByLabel(/play|pause/i)
+	// Wait for the seek bar's max to be updated (it's set from duration state)
+	await expect(async () => {
+		const max = await seekBar.getAttribute('max')
+		expect(parseFloat(max || '0')).toBeGreaterThan(0)
+	}).toPass({ timeout: 2000 })
 
-	// Initially should show "Play"
-	await expect(playPauseButton).toHaveText('Play')
+	// Verify seek bar has a valid value
+	const seekBarValue = await seekBar.getAttribute('value')
+	expect(seekBarValue).toBeDefined()
+
+	// Test play/pause button - should show "Play" initially
+	await expect(playPauseButton).toHaveAttribute('aria-label', 'Play')
 
 	// Click play
 	await playPauseButton.click()
 
-	// Wait a bit for video to start (if it can)
+	// Wait a bit for video to start
 	await page.waitForTimeout(500)
 
-	// Click pause (button text should change)
+	// Button should now show "Pause"
+	await expect(playPauseButton).toHaveAttribute('aria-label', 'Pause')
+
+	// Click pause
 	await playPauseButton.click()
-	await expect(playPauseButton).toHaveText('Play')
+	await expect(playPauseButton).toHaveAttribute('aria-label', 'Play')
 
-	// Test seek functionality
-	const seekBar = page.getByLabel('Video seek')
-	await expect(seekBar).toBeVisible()
+	// Test 3-second seek buttons
+	const seekBackwardButton = page.getByLabel('Seek backward 3 seconds')
+	const seekForwardButton = page.getByLabel('Seek forward 3 seconds')
 
-	// Wait for video metadata to load (duration, etc.)
-	await page.waitForTimeout(500)
+	await expect(seekBackwardButton).toBeVisible()
+	await expect(seekForwardButton).toBeVisible()
 
-	// Try to seek (now works with real video file)
-	const seekBarValue = await seekBar.getAttribute('value')
-	expect(seekBarValue).toBeDefined()
+	// Get initial time
+	const initialTime = await seekBar.getAttribute('value')
+	const initialTimeNum = parseFloat(initialTime || '0')
+
+	// Test backward seek
+	await seekBackwardButton.click()
+	await page.waitForTimeout(200)
+	const afterBackward = await seekBar.getAttribute('value')
+	const afterBackwardNum = parseFloat(afterBackward || '0')
+	expect(afterBackwardNum).toBeLessThan(initialTimeNum)
+
+	// Test forward seek
+	await seekForwardButton.click()
+	await page.waitForTimeout(200)
+	const afterForward = await seekBar.getAttribute('value')
+	const afterForwardNum = parseFloat(afterForward || '0')
+	expect(afterForwardNum).toBeGreaterThan(afterBackwardNum)
 
 	// Test actual seeking with real video
-	await seekBar.fill('0.5') // Seek to 50%
+	const maxValue = await seekBar.getAttribute('max')
+	const seekValue = (parseFloat(maxValue || '0') * 0.5).toString()
+	await seekBar.fill(seekValue)
 	await page.waitForTimeout(200)
 
 	// Test frame navigation buttons
@@ -118,8 +158,30 @@ test('User can play, pause, and seek through video', async ({
 	await prevFrameButton.click()
 	await page.waitForTimeout(100)
 
-	// Check that time display is present
-	// Time format should be something like "0:00 / 0:00"
-	const timeDisplay = page.locator('text=/\\d+:\\d+\\s*\\/\\s*\\d+:\\d+/')
-	await expect(timeDisplay).toBeVisible()
+	// Check that time display is present with milliseconds format
+	// Time format should be something like "0:00.000 / 0:00.000"
+	// The time is split across multiple spans, so check for the format
+	await expect(
+		page.locator('.text-muted-foreground.text-sm').filter({
+			hasText: /\d+:\d+\.\d{3}/,
+		}),
+	).toBeVisible()
+
+	// Test reload button appears when at the end
+	const finalSeekValue = maxValue
+	if (finalSeekValue) {
+		await seekBar.fill(finalSeekValue)
+		await page.waitForTimeout(300)
+
+		// Button should show "Restart" when at the end
+		await expect(playPauseButton).toHaveAttribute('aria-label', 'Restart')
+
+		// Click reload should restart from beginning
+		await playPauseButton.click()
+		await page.waitForTimeout(300)
+
+		// Should be back at the beginning
+		const restartedTime = await seekBar.getAttribute('value')
+		expect(parseFloat(restartedTime || '0')).toBeLessThan(0.1)
+	}
 })
