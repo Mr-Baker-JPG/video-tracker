@@ -375,7 +375,7 @@ test('Video model can be created in database', async () => {
 test('Video upload handler validates file type and size', async () => {
 	// Import the schema to test validation directly
 	const { VideoUploadSchema } = await import('./new.tsx')
-	
+
 	// Test invalid file type
 	const invalidFile = new File(['content'], 'test.txt', {
 		type: 'text/plain',
@@ -413,8 +413,7 @@ test('Video upload handler validates file type and size', async () => {
 	if (!largeResult.success) {
 		expect(
 			largeResult.error.issues.some(
-				(issue) =>
-					issue.message === 'Video file size must be less than 500MB',
+				(issue) => issue.message === 'Video file size must be less than 500MB',
 			),
 		).toBe(true)
 	}

@@ -15,6 +15,10 @@ export function getNoteImgSrc(objectKey: string) {
 	return `/resources/images?objectKey=${encodeURIComponent(objectKey)}`
 }
 
+export function getVideoSrc(objectKey: string) {
+	return `/resources/videos?objectKey=${encodeURIComponent(objectKey)}`
+}
+
 export function getImgSrc({
 	height,
 	optimizerEndpoint,

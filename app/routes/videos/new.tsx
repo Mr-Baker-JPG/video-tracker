@@ -59,24 +59,40 @@ export async function action({ request }: Route.ActionArgs) {
 
 	const { videoFile } = submission.value
 
-	// Upload video to storage
-	const objectKey = await uploadVideo(userId, videoFile)
+	try {
+		// Upload video to storage
+		const objectKey = await uploadVideo(userId, videoFile)
 
-	// Save video metadata to database
-	await prisma.video.create({
-		data: {
-			filename: videoFile.name,
-			url: objectKey,
-			userId,
-			// duration is nullable and can be calculated later
-		},
-	})
+		// Save video metadata to database
+		await prisma.video.create({
+			data: {
+				filename: videoFile.name,
+				url: objectKey,
+				userId,
+				// duration is nullable and can be calculated later
+			},
+		})
 
-	return redirectWithToast('/videos/new', {
-		title: 'Video uploaded',
-		description: `Successfully uploaded ${videoFile.name}`,
-		type: 'success',
-	})
+		return redirectWithToast('/videos/new', {
+			title: 'Video uploaded',
+			description: `Successfully uploaded ${videoFile.name}`,
+			type: 'success',
+		})
+	} catch (error) {
+		console.error('Video upload error:', error)
+		return data(
+			{
+				result: submission.reply({
+					formErrors: [
+						error instanceof Error
+							? error.message
+							: 'Failed to upload video. Please try again.',
+					],
+				}),
+			},
+			{ status: 500 },
+		)
+	}
 }
 
 function formatFileSize(bytes: number): string {

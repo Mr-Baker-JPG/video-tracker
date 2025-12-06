@@ -187,10 +187,10 @@ model Passkey {
 }
 
 model Video {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   filename   String
   url        String // Storage object key or URL
-  duration   Float?   // Duration in seconds (nullable, can be calculated later)
+  duration   Float? // Duration in seconds (nullable, can be calculated later)
   uploadedAt DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)

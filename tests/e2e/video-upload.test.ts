@@ -36,7 +36,8 @@ test('User can select a video file and see upload progress', async ({
 
 	// File info should be displayed
 	await expect(page.getByText(videoFile.name)).toBeVisible()
-	await expect(page.getByText(/bytes|kb|mb|gb/i)).toBeVisible()
+	// Look for file size pattern (number followed by unit) to avoid matching "breadcrumb"
+	await expect(page.getByText(/\d+\s*(bytes|kb|mb|gb)/i)).toBeVisible()
 
 	// Upload button should be enabled
 	const uploadButton = page.getByRole('button', { name: /upload/i })
@@ -46,20 +47,27 @@ test('User can select a video file and see upload progress', async ({
 	await uploadButton.click()
 
 	// Wait for upload to complete and success message
-	await expect(page.getByText(/uploading/i)).toBeVisible().catch(() => {
-		// Progress might not show if submission is too fast
-	})
+	await expect(page.getByText(/uploading/i))
+		.toBeVisible()
+		.catch(() => {
+			// Progress might not show if submission is too fast
+		})
 
 	// Wait for redirect back to the page (after successful upload)
 	await expect(page).toHaveURL('/videos/new')
 
-	// Verify video was stored in database
-	const video = await prisma.video.findFirst({
-		where: {
-			userId: user.id,
-			filename: videoFile.name,
-		},
-	})
+	// Wait for video to be stored in database (with retry)
+	let video = null
+	for (let i = 0; i < 10; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFile.name,
+			},
+		})
+		if (video) break
+		await page.waitForTimeout(100) // Wait 100ms before retrying
+	}
 
 	expect(video).toBeDefined()
 	expect(video?.filename).toBe(videoFile.name)
@@ -97,13 +105,18 @@ test('Uploaded video is stored and retrievable', async ({
 	// Wait for upload to complete
 	await expect(page).toHaveURL('/videos/new')
 
-	// Verify video exists in database
-	const video = await prisma.video.findFirst({
-		where: {
-			userId: user.id,
-			filename: videoFile.name,
-		},
-	})
+	// Wait for video to be stored in database (with retry)
+	let video = null
+	for (let i = 0; i < 10; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFile.name,
+			},
+		})
+		if (video) break
+		await page.waitForTimeout(100) // Wait 100ms before retrying
+	}
 
 	expect(video).toBeDefined()
 	expect(video?.filename).toBe(videoFile.name)

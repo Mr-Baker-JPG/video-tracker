@@ -37,8 +37,8 @@
 				"E2E test: User can play, pause, and seek through video",
 				"Manual: Verify smooth playback and frame navigation in browser"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F004",

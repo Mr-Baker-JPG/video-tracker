@@ -49,10 +49,7 @@ export async function uploadNoteImage(
 	return uploadToStorage(file, key)
 }
 
-export async function uploadVideo(
-	userId: string,
-	file: File | FileUpload,
-) {
+export async function uploadVideo(userId: string, file: File | FileUpload) {
 	const fileId = createId()
 	const fileExtension = file.name.split('.').pop() || ''
 	const timestamp = Date.now()
