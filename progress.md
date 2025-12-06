@@ -116,8 +116,10 @@ implementation and testing of each feature as defined in `features.json`.
   - Seek bar (range input) for scrubbing through video
   - Frame-by-frame navigation buttons (previous/next frame)
   - Time display showing current time, duration, and current frame number
-- Added `getVideoSrc` helper function in `app/utils/misc.tsx` to generate video URLs from storage object keys
-- Created video resource route at `/resources/videos` to serve videos from storage with proper headers
+- Added `getVideoSrc` helper function in `app/utils/misc.tsx` to generate video
+  URLs from storage object keys
+- Created video resource route at `/resources/videos` to serve videos from
+  storage with proper headers
 - Created video display route at `/videos/$videoId.tsx` that:
   - Loads video metadata from database
   - Verifies user ownership
@@ -127,13 +129,17 @@ implementation and testing of each feature as defined in `features.json`.
 **Testing:**
 
 - ✅ Unit test: Video player component renders with controls (passing)
-- ✅ Unit test: Play/pause functionality works (passing - verifies button state changes and video method calls)
-- ✅ E2E test: User can play, pause, and seek through video (passing - tests full user interaction flow)
+- ✅ Unit test: Play/pause functionality works (passing - verifies button state
+  changes and video method calls)
+- ✅ E2E test: User can play, pause, and seek through video (passing - tests
+  full user interaction flow)
 
 **Notes:**
 
-- Frame navigation assumes 30fps; this can be made configurable in future features
+- Frame navigation assumes 30fps; this can be made configurable in future
+  features
 - Video player uses refs to access video element for direct control
 - Time formatting displays as MM:SS format
 - Frame number is calculated and displayed for precise navigation
-- Video resource route fetches from storage and streams to client with proper content-type headers
+- Video resource route fetches from storage and streams to client with proper
+  content-type headers

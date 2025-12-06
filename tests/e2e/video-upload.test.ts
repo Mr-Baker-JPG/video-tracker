@@ -1,5 +1,5 @@
-import { expect, test } from '#tests/playwright-utils.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { expect, test } from '#tests/playwright-utils.ts'
 
 test('User can select a video file and see upload progress', async ({
 	page,
@@ -47,11 +47,11 @@ test('User can select a video file and see upload progress', async ({
 	await uploadButton.click()
 
 	// Wait for upload to complete and success message
-	await expect(page.getByText(/uploading/i))
-		.toBeVisible()
-		.catch(() => {
-			// Progress might not show if submission is too fast
-		})
+	try {
+		await expect(page.getByText(/uploading/i)).toBeVisible()
+	} catch {
+		// Progress might not show if submission is too fast
+	}
 
 	// Wait for redirect back to the page (after successful upload)
 	await expect(page).toHaveURL('/videos/new')
@@ -123,6 +123,11 @@ test('Uploaded video is stored and retrievable', async ({
 	expect(video?.userId).toBe(user.id)
 	expect(video?.url).toBeDefined()
 	expect(video?.uploadedAt).toBeInstanceOf(Date)
+
+	// Assert video is not null for TypeScript
+	if (!video) {
+		throw new Error('Video not found')
+	}
 
 	// Verify video can be retrieved by ID
 	const retrieved = await prisma.video.findUnique({

@@ -46,13 +46,13 @@ test('Play/pause functionality works', async () => {
 			video._paused = value
 		},
 	})
-	
+
 	Object.defineProperty(video, 'currentTime', {
 		configurable: true,
 		writable: true,
 		value: 0,
 	})
-	
+
 	Object.defineProperty(video, 'duration', {
 		configurable: true,
 		writable: true,
@@ -70,7 +70,7 @@ test('Play/pause functionality works', async () => {
 
 	// Click to play - this should call video.play()
 	await user.click(playPauseButton)
-	
+
 	// Simulate video playing by updating paused property and triggering event
 	video._paused = false
 	video.dispatchEvent(new Event('play'))
@@ -81,7 +81,7 @@ test('Play/pause functionality works', async () => {
 
 	// Click to pause - this should call video.pause()
 	await user.click(playPauseButton)
-	
+
 	// Simulate video paused
 	video._paused = true
 	video.dispatchEvent(new Event('pause'))

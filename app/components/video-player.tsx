@@ -155,9 +155,7 @@ export function VideoPlayer({ src, className }: VideoPlayerProps) {
 						<span>{formatTime(currentTime)}</span>
 						<span className="mx-1">/</span>
 						<span>{formatTime(duration)}</span>
-						<span className="ml-2 text-xs">
-							(Frame: {currentFrame})
-						</span>
+						<span className="ml-2 text-xs">(Frame: {currentFrame})</span>
 					</div>
 				</div>
 			</div>
