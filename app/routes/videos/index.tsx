@@ -90,7 +90,7 @@ export default function VideosRoute({
 				<h1 className="text-h1">My Videos</h1>
 				<Link
 					to="/videos/new"
-					className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+					className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2"
 				>
 					<Icon name="plus" className="size-4">
 						Upload Video
@@ -99,15 +99,18 @@ export default function VideosRoute({
 			</div>
 
 			{loaderData.videos.length === 0 ? (
-				<div className="text-center py-12">
-					<Icon name="video" className="mx-auto mb-4 size-16 text-muted-foreground" />
-					<p className="text-muted-foreground text-lg mb-2">No videos yet</p>
-					<p className="text-muted-foreground text-sm mb-4">
+				<div className="py-12 text-center">
+					<Icon
+						name="video"
+						className="text-muted-foreground mx-auto mb-4 size-16"
+					/>
+					<p className="text-muted-foreground mb-2 text-lg">No videos yet</p>
+					<p className="text-muted-foreground mb-4 text-sm">
 						Upload your first video to get started
 					</p>
 					<Link
 						to="/videos/new"
-						className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+						className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2"
 					>
 						<Icon name="plus" className="size-4">
 							Upload Video
@@ -117,11 +120,7 @@ export default function VideosRoute({
 			) : (
 				<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 					{loaderData.videos.map((video) => (
-						<VideoCard
-							key={video.id}
-							video={video}
-							actionData={actionData}
-						/>
+						<VideoCard key={video.id} video={video} actionData={actionData} />
 					))}
 				</div>
 			)}
@@ -155,27 +154,27 @@ function VideoCard({
 	const videoSrc = getVideoSrc(video.url)
 
 	return (
-		<div className="group relative overflow-hidden rounded-lg border bg-card">
+		<div className="group bg-card relative overflow-hidden rounded-lg border">
 			<Link
 				to={`/videos/${video.id}`}
-				className="block focus:outline-none focus:ring-2 focus:ring-primary"
+				className="focus:ring-primary block focus:ring-2 focus:outline-none"
 			>
 				{/* Video Thumbnail Placeholder */}
-				<div className="relative aspect-video bg-muted flex items-center justify-center overflow-hidden">
+				<div className="bg-muted relative flex aspect-video items-center justify-center overflow-hidden">
 					<video
 						src={videoSrc}
 						className="h-full w-full object-cover"
 						muted
 						preload="metadata"
 					/>
-					<div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+					<div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">
 						<Icon
 							name="play"
-							className="size-12 text-white opacity-80 group-hover:opacity-100 transition-opacity"
+							className="size-12 text-white opacity-80 transition-opacity group-hover:opacity-100"
 						/>
 					</div>
 					{video.duration && (
-						<div className="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+						<div className="absolute right-2 bottom-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
 							{formatDuration(video.duration)}
 						</div>
 					)}
@@ -183,13 +182,13 @@ function VideoCard({
 
 				{/* Video Info */}
 				<div className="p-4">
-					<h3 className="font-semibold line-clamp-2 mb-1">{video.filename}</h3>
+					<h3 className="mb-1 line-clamp-2 font-semibold">{video.filename}</h3>
 					<p className="text-muted-foreground text-sm">{timeAgo}</p>
 				</div>
 			</Link>
 
 			{/* Delete Button */}
-			<div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+			<div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
 				<Form method="POST" {...getFormProps(form)}>
 					<input type="hidden" name="videoId" value={video.id} />
 					<StatusButton
@@ -203,10 +202,7 @@ function VideoCard({
 						{...dc.getButtonProps()}
 						className="h-8 w-8 p-0"
 					>
-						<Icon
-							name={dc.doubleCheck ? 'trash' : 'trash'}
-							className="size-4"
-						>
+						<Icon name={dc.doubleCheck ? 'trash' : 'trash'} className="size-4">
 							{dc.doubleCheck ? 'Delete?' : ''}
 						</Icon>
 					</StatusButton>

@@ -31,9 +31,7 @@ test('User can view their video list', async ({ page, navigate, login }) => {
 	await expect(page.getByText('test-video-2.mp4')).toBeVisible()
 
 	// Check that upload button is present
-	await expect(
-		page.getByRole('link', { name: /upload video/i }),
-	).toBeVisible()
+	await expect(page.getByRole('link', { name: /upload video/i })).toBeVisible()
 
 	// Check that videos link to their detail pages
 	// The link wraps the entire card, find it by href
@@ -46,7 +44,11 @@ test('User can view their video list', async ({ page, navigate, login }) => {
 	await expect(video2Link).toHaveAttribute('href', `/videos/${video2.id}`)
 })
 
-test('User can delete a video from the list', async ({ page, navigate, login }) => {
+test('User can delete a video from the list', async ({
+	page,
+	navigate,
+	login,
+}) => {
 	const user = await login()
 
 	// Create a test video

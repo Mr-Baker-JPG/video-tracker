@@ -178,9 +178,11 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Implementation:**
 
-- Created video list route at `/videos` that displays all videos for the current user
+- Created video list route at `/videos` that displays all videos for the current
+  user
 - Implemented loader that fetches videos ordered by upload date (newest first)
-- Created video list UI with responsive grid layout (1 column on mobile, 2 on tablet, 3 on desktop)
+- Created video list UI with responsive grid layout (1 column on mobile, 2 on
+  tablet, 3 on desktop)
 - Each video card displays:
   - Video thumbnail using HTML5 video element with play icon overlay
   - Video filename as title
@@ -206,8 +208,10 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Notes:**
 
-- Video thumbnails use HTML5 video element with `preload="metadata"` for efficient loading
-- Delete button uses `useDoubleCheck` hook for confirmation (first click enables, second click deletes)
+- Video thumbnails use HTML5 video element with `preload="metadata"` for
+  efficient loading
+- Delete button uses `useDoubleCheck` hook for confirmation (first click
+  enables, second click deletes)
 - Delete button is hidden by default and appears on card hover for cleaner UI
 - Video cards use group hover effects for better UX
 - All tests pass including unit and E2E tests

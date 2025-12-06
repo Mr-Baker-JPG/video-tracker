@@ -93,7 +93,9 @@ test('Video list component fetches and displays user videos', async () => {
 	})
 
 	// Check that upload button is present
-	expect(screen.getByRole('link', { name: /upload video/i })).toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: /upload video/i }),
+	).toBeInTheDocument()
 })
 
 test('Video list shows empty state when no videos', async () => {
