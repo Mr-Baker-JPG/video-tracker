@@ -13,10 +13,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { uploadVideo } from '#app/utils/storage.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import {
-	isValidYouTubeUrl,
-	extractYouTubeVideoId,
-} from '#app/utils/youtube.ts'
+import { isValidYouTubeUrl, extractYouTubeVideoId } from '#app/utils/youtube.ts'
 import { type Route } from './+types/new.ts'
 
 export const handle = {
@@ -229,8 +226,7 @@ export default function VideoUploadRoute({ actionData }: Route.ComponentProps) {
 		}
 	}, [isUploading, uploadType])
 
-	const youtubeUrlValue =
-		fields.youtubeUrl?.value?.toString() || ''
+	const youtubeUrlValue = fields.youtubeUrl?.value?.toString() || ''
 	const isYouTubeUrlValid =
 		uploadType === 'youtube' &&
 		youtubeUrlValue &&
@@ -362,7 +358,7 @@ export default function VideoUploadRoute({ actionData }: Route.ComponentProps) {
 											</code>
 										</p>
 										<div className="mt-3 rounded-md border border-blue-200 bg-white p-3">
-											<p className="text-sm text-muted-foreground">
+											<p className="text-muted-foreground text-sm">
 												<strong>Note:</strong> YouTube video processing is not
 												yet available. This feature will allow you to analyze
 												videos directly from YouTube in a future update.
@@ -376,7 +372,10 @@ export default function VideoUploadRoute({ actionData }: Route.ComponentProps) {
 						{youtubeUrlValue && !isYouTubeUrlValid && (
 							<div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
 								<div className="flex items-start gap-2">
-									<Icon name="question-mark-circled" className="text-yellow-600" />
+									<Icon
+										name="question-mark-circled"
+										className="text-yellow-600"
+									/>
 									<div className="flex-1">
 										<p className="text-sm text-yellow-800">
 											Please enter a valid YouTube URL (e.g.,{' '}

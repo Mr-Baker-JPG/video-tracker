@@ -57,9 +57,7 @@ export function extractYouTubeVideoId(url: string): string | null {
 	}
 
 	// Try standard watch URLs first: youtube.com/watch?v=VIDEO_ID
-	const watchMatch = trimmedUrl.match(
-		/[?&]v=([a-zA-Z0-9_-]{11})(?:&|$|#)/,
-	)
+	const watchMatch = trimmedUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})(?:&|$|#)/)
 	if (watchMatch && watchMatch[1]) {
 		return watchMatch[1]
 	}

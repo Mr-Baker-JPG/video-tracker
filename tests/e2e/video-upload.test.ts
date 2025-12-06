@@ -173,9 +173,7 @@ test('User can input a YouTube URL and see validation feedback', async ({
 	await youtubeInput.fill(validUrl)
 
 	// Wait for validation feedback
-	await expect(
-		page.getByText(/valid youtube url detected/i),
-	).toBeVisible()
+	await expect(page.getByText(/valid youtube url detected/i)).toBeVisible()
 	await expect(page.getByText(/video id:/i)).toBeVisible()
 	await expect(page.getByText(/dQw4w9WgXcQ/i)).toBeVisible()
 
@@ -192,9 +190,7 @@ test('User can input a YouTube URL and see validation feedback', async ({
 	await submitButton.click()
 
 	// Should show info message about processing not being available (in toast)
-	await expect(
-		page.getByText(/youtube video detected/i),
-	).toBeVisible()
+	await expect(page.getByText(/youtube video detected/i)).toBeVisible()
 	// Check for the toast message specifically (it appears after redirect)
 	await expect(
 		page.getByText(/youtube video processing is not yet available.*video id/i),
@@ -220,15 +216,24 @@ test('YouTube URL validation rejects invalid URLs', async ({
 	await youtubeInput.fill('not a valid url')
 	// Blur to trigger validation
 	await youtubeInput.blur()
-	
+
 	// Wait a bit for validation to run
 	await page.waitForTimeout(1000)
 
 	// Should show validation feedback - check that the help text appears or error appears
 	// The form may show either the yellow help text or the error list
 	const hasValidationFeedback = await Promise.race([
-		page.locator('li.text-foreground-destructive').filter({ hasText: /please enter a valid youtube url/i }).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
-		page.getByText(/please enter a valid youtube url.*e\.g\./i).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
+		page
+			.locator('li.text-foreground-destructive')
+			.filter({ hasText: /please enter a valid youtube url/i })
+			.waitFor({ timeout: 2000 })
+			.then(() => true)
+			.catch(() => false),
+		page
+			.getByText(/please enter a valid youtube url.*e\.g\./i)
+			.waitFor({ timeout: 2000 })
+			.then(() => true)
+			.catch(() => false),
 	])
 	expect(hasValidationFeedback).toBe(true)
 
@@ -242,8 +247,17 @@ test('YouTube URL validation rejects invalid URLs', async ({
 	await page.waitForTimeout(1000)
 
 	const hasValidationFeedback2 = await Promise.race([
-		page.locator('li.text-foreground-destructive').filter({ hasText: /please enter a valid youtube url/i }).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
-		page.getByText(/please enter a valid youtube url.*e\.g\./i).waitFor({ timeout: 2000 }).then(() => true).catch(() => false),
+		page
+			.locator('li.text-foreground-destructive')
+			.filter({ hasText: /please enter a valid youtube url/i })
+			.waitFor({ timeout: 2000 })
+			.then(() => true)
+			.catch(() => false),
+		page
+			.getByText(/please enter a valid youtube url.*e\.g\./i)
+			.waitFor({ timeout: 2000 })
+			.then(() => true)
+			.catch(() => false),
 	])
 	expect(hasValidationFeedback2).toBe(true)
 
@@ -259,9 +273,7 @@ test('YouTube URL validation rejects invalid URLs', async ({
 		await page.waitForTimeout(500)
 
 		// Should show valid feedback
-		await expect(
-			page.getByText(/valid youtube url detected/i),
-		).toBeVisible()
+		await expect(page.getByText(/valid youtube url detected/i)).toBeVisible()
 
 		// Submit button should be enabled
 		await expect(submitButton).toBeEnabled()

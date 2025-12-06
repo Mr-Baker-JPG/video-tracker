@@ -226,8 +226,10 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Implementation:**
 
-- Created YouTube utility functions in `app/utils/youtube.ts` for URL validation and video ID extraction
-- Updated video upload form to support either file upload OR YouTube URL (mutually exclusive)
+- Created YouTube utility functions in `app/utils/youtube.ts` for URL validation
+  and video ID extraction
+- Updated video upload form to support either file upload OR YouTube URL
+  (mutually exclusive)
 - Added toggle buttons to switch between file upload and YouTube URL modes
 - Implemented YouTube URL validation that accepts:
   - Standard URLs: `https://www.youtube.com/watch?v=VIDEO_ID`
@@ -237,16 +239,19 @@ implementation and testing of each feature as defined in `features.json`.
 - Added real-time validation feedback:
   - Valid URLs show a success message with extracted video ID
   - Invalid URLs show error messages and helpful examples
-  - Placeholder message explains that YouTube video processing is not yet available
+  - Placeholder message explains that YouTube video processing is not yet
+    available
 - Updated form schema to validate YouTube URLs using superRefine
-- YouTube URL submission shows an info toast message indicating processing is not yet available
+- YouTube URL submission shows an info toast message indicating processing is
+  not yet available
 
 **Testing:**
 
 - ✅ Unit test: YouTube URL validation accepts valid URLs (passing)
 - ✅ Unit test: YouTube URL validation rejects invalid URLs (passing)
 - ✅ Unit test: YouTube video ID extraction works correctly (passing)
-- ✅ E2E test: User can input a YouTube URL and see validation feedback (passing)
+- ✅ E2E test: User can input a YouTube URL and see validation feedback
+  (passing)
 - ✅ E2E test: YouTube URL validation rejects invalid URLs (passing)
 
 **Notes:**

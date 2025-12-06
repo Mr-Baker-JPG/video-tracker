@@ -1,17 +1,14 @@
 import { describe, expect, test } from 'vitest'
-import {
-	isValidYouTubeUrl,
-	extractYouTubeVideoId,
-} from './youtube.ts'
+import { isValidYouTubeUrl, extractYouTubeVideoId } from './youtube.ts'
 
 describe('isValidYouTubeUrl', () => {
 	test('accepts valid standard YouTube URLs', () => {
 		expect(
 			isValidYouTubeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
 		).toBe(true)
-		expect(
-			isValidYouTubeUrl('https://youtube.com/watch?v=dQw4w9WgXcQ'),
-		).toBe(true)
+		expect(isValidYouTubeUrl('https://youtube.com/watch?v=dQw4w9WgXcQ')).toBe(
+			true,
+		)
 		expect(
 			isValidYouTubeUrl('http://www.youtube.com/watch?v=dQw4w9WgXcQ'),
 		).toBe(true)
@@ -37,9 +34,9 @@ describe('isValidYouTubeUrl', () => {
 	})
 
 	test('accepts valid mobile YouTube URLs', () => {
-		expect(
-			isValidYouTubeUrl('https://m.youtube.com/watch?v=dQw4w9WgXcQ'),
-		).toBe(true)
+		expect(isValidYouTubeUrl('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(
+			true,
+		)
 	})
 
 	test('rejects invalid URLs', () => {
@@ -51,9 +48,9 @@ describe('isValidYouTubeUrl', () => {
 	})
 
 	test('rejects YouTube URLs with invalid video ID length', () => {
-		expect(
-			isValidYouTubeUrl('https://www.youtube.com/watch?v=short'),
-		).toBe(false)
+		expect(isValidYouTubeUrl('https://www.youtube.com/watch?v=short')).toBe(
+			false,
+		)
 		expect(
 			isValidYouTubeUrl(
 				'https://www.youtube.com/watch?v=thisiswaytoolongtobeavideoid',
@@ -121,9 +118,7 @@ describe('extractYouTubeVideoId', () => {
 
 	test('extracts video ID from embed URLs', () => {
 		expect(
-			extractYouTubeVideoId(
-				'https://www.youtube.com/embed/dQw4w9WgXcQ',
-			),
+			extractYouTubeVideoId('https://www.youtube.com/embed/dQw4w9WgXcQ'),
 		).toBe('dQw4w9WgXcQ')
 	})
 
@@ -139,9 +134,7 @@ describe('extractYouTubeVideoId', () => {
 			extractYouTubeVideoId('https://www.youtube.com/watch?v=invalid'),
 		).toBe(null)
 		expect(
-			extractYouTubeVideoId(
-				'https://www.youtube.com/watch?v=thisiswaytoolong',
-			),
+			extractYouTubeVideoId('https://www.youtube.com/watch?v=thisiswaytoolong'),
 		).toBe(null)
 	})
 
