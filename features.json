@@ -1,0 +1,257 @@
+{
+	"features": [
+		{
+			"id": "F001",
+			"title": "Video Upload UI",
+			"description": "Create a file upload interface that allows users to select and upload video files (mp4, webm, mov) from their device. Display upload progress and validation feedback.",
+			"tests": [
+				"Unit test: Upload component renders with file input",
+				"Unit test: File validation rejects non-video files",
+				"Unit test: File validation accepts valid video formats",
+				"E2E test: User can select a video file and see upload progress",
+				"Manual: Verify video file selection works in browser, shows file name and size"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F002",
+			"title": "Video Storage and Database Model",
+			"description": "Create Prisma schema for Video model (id, userId, filename, url, duration, uploadedAt) and implement server-side upload handler that saves video files and stores metadata in database.",
+			"tests": [
+				"Unit test: Video model can be created in database",
+				"Unit test: Video upload handler validates file type and size",
+				"E2E test: Uploaded video is stored and retrievable",
+				"Manual: Verify video file appears in database after upload"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F003",
+			"title": "Video Player Component",
+			"description": "Build a video player component using HTML5 video element with play/pause, seek, and frame-by-frame navigation controls. Display current time and duration.",
+			"tests": [
+				"Unit test: Video player component renders with controls",
+				"Unit test: Play/pause functionality works",
+				"E2E test: User can play, pause, and seek through video",
+				"Manual: Verify smooth playback and frame navigation in browser"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F004",
+			"title": "Video List/Management Page",
+			"description": "Create a page that displays all videos uploaded by the current user. Show video thumbnails, titles, upload dates, and provide delete functionality. Link to individual video tracking pages.",
+			"tests": [
+				"Unit test: Video list component fetches and displays user videos",
+				"Unit test: Delete button triggers delete action",
+				"E2E test: User can view their video list",
+				"E2E test: User can delete a video from the list",
+				"Manual: Verify video list displays correctly with thumbnails"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F005",
+			"title": "YouTube URL Input",
+			"description": "Create a form field that accepts YouTube URLs. Validate URL format and extract video ID. Display a placeholder message about future processing capability.",
+			"tests": [
+				"Unit test: YouTube URL validation accepts valid URLs",
+				"Unit test: YouTube URL validation rejects invalid URLs",
+				"Unit test: YouTube video ID extraction works correctly",
+				"E2E test: User can input a YouTube URL and see validation feedback",
+				"Manual: Verify URL validation works with various YouTube URL formats"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F006",
+			"title": "Tracking Point Marker",
+			"description": "Implement a canvas overlay on the video player that allows users to click to place tracking points at specific frames. Store point coordinates (x, y) and frame number.",
+			"tests": [
+				"Unit test: Tracking point can be created with x, y, frame data",
+				"Unit test: Point coordinates are correctly stored",
+				"E2E test: User can click on video to place a tracking point",
+				"Manual: Verify points appear accurately at click locations on video"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F007",
+			"title": "Multi-Point Tracking Across Frames",
+			"description": "Enable users to track the same point across multiple frames. Allow frame navigation and point placement/updating. Store tracking data as an array of (frame, x, y) coordinates.",
+			"tests": [
+				"Unit test: Multiple tracking points can be stored for same object",
+				"Unit test: Points are associated with correct frame numbers",
+				"E2E test: User can navigate frames and place multiple points",
+				"Manual: Verify tracking points persist when navigating between frames"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F008",
+			"title": "Scale Calibration UI",
+			"description": "Create a UI for users to set the real-world scale. Allow users to draw a line on the video and input the real-world distance in meters. Calculate pixels-to-meters conversion ratio.",
+			"tests": [
+				"Unit test: Scale calibration calculates pixels-to-meters ratio",
+				"Unit test: Scale data is stored correctly",
+				"E2E test: User can draw a scale line and input distance",
+				"Manual: Verify scale line drawing works smoothly on video"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F009",
+			"title": "Tracking Data Export",
+			"description": "Implement export functionality that allows users to download tracking data as CSV. Include columns: frame, time (seconds), x (pixels), y (pixels), x (meters), y (meters) if scale is set.",
+			"tests": [
+				"Unit test: Export function generates correct CSV format",
+				"Unit test: CSV includes all required columns",
+				"E2E test: User can export tracking data and download CSV file",
+				"Manual: Verify CSV opens correctly in spreadsheet application"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F010",
+			"title": "Position vs Time Graph",
+			"description": "Create a graph component that plots position (x or y) vs time using the tracking data. Use a charting library (e.g., Recharts or Chart.js). Allow users to toggle between x and y axes.",
+			"tests": [
+				"Unit test: Graph component receives and displays tracking data",
+				"Unit test: X/Y toggle switches graph axes correctly",
+				"E2E test: User can view position vs time graph",
+				"Manual: Verify graph displays correctly with sample tracking data"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F011",
+			"title": "Velocity Calculation and Graph",
+			"description": "Calculate velocity from position data (v = Δx/Δt) and create a velocity vs time graph. Handle edge cases for first and last frames. Display velocity in m/s if scale is set.",
+			"tests": [
+				"Unit test: Velocity calculation is correct for sample data",
+				"Unit test: Velocity handles edge cases (first/last frames)",
+				"Unit test: Velocity converts to m/s when scale is available",
+				"E2E test: User can view velocity vs time graph",
+				"Manual: Verify velocity calculations match expected physics results"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F012",
+			"title": "Acceleration Calculation and Graph",
+			"description": "Calculate acceleration from velocity data (a = Δv/Δt) and create an acceleration vs time graph. Display acceleration in m/s² if scale is set.",
+			"tests": [
+				"Unit test: Acceleration calculation is correct for sample data",
+				"Unit test: Acceleration handles edge cases",
+				"Unit test: Acceleration converts to m/s² when scale is available",
+				"E2E test: User can view acceleration vs time graph",
+				"Manual: Verify acceleration graph shows expected physics behavior"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F013",
+			"title": "Trajectory Path Visualization",
+			"description": "Display the tracked object's path as a line overlay on the video canvas, showing the trajectory from all tracking points. Allow toggling path visibility.",
+			"tests": [
+				"Unit test: Trajectory path is drawn from tracking points",
+				"Unit test: Path toggle shows/hides trajectory",
+				"E2E test: User can view trajectory path overlay on video",
+				"Manual: Verify trajectory path accurately follows tracked object"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F014",
+			"title": "Save and Load Tracking Sessions",
+			"description": "Store tracking data, scale calibration, and video reference in database. Allow users to save their tracking session and reload it later to continue editing or view graphs.",
+			"tests": [
+				"Unit test: Tracking session can be saved to database",
+				"Unit test: Tracking session can be loaded from database",
+				"E2E test: User can save a tracking session",
+				"E2E test: User can load a saved tracking session",
+				"Manual: Verify all tracking data persists after reload"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F015",
+			"title": "Multiple Object Tracking",
+			"description": "Allow users to track multiple objects in the same video. Each object gets its own set of tracking points, color-coded path, and separate graph series. Add object naming/color selection.",
+			"tests": [
+				"Unit test: Multiple tracking objects can be created",
+				"Unit test: Each object's points are stored separately",
+				"E2E test: User can create multiple tracking objects",
+				"E2E test: User can add points to different objects",
+				"Manual: Verify different objects display with distinct colors"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F016",
+			"title": "Frame-by-Frame Navigation Controls",
+			"description": "Add precise frame navigation buttons (previous frame, next frame, first frame, last frame) and a frame number input. Display current frame number and total frames.",
+			"tests": [
+				"Unit test: Frame navigation functions work correctly",
+				"Unit test: Frame number input validates and jumps to frame",
+				"E2E test: User can navigate frame by frame",
+				"Manual: Verify smooth frame navigation without playback interruption"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F017",
+			"title": "Video Analysis Dashboard",
+			"description": "Create a dashboard page that shows summary statistics from tracking data: total distance traveled, average velocity, max velocity, average acceleration. Display key metrics cards.",
+			"tests": [
+				"Unit test: Statistics calculations are correct",
+				"Unit test: Dashboard displays all metrics",
+				"E2E test: User can view analysis dashboard",
+				"Manual: Verify statistics match manual calculations"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F018",
+			"title": "Graph Export (PNG/PDF)",
+			"description": "Allow users to export graphs as PNG images or PDF documents. Include graph title, axes labels, and data points in the export.",
+			"tests": [
+				"Unit test: Graph export function generates image data",
+				"E2E test: User can export graph as PNG",
+				"Manual: Verify exported images are high quality and readable"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F019",
+			"title": "Basic Error Handling and Validation",
+			"description": "Add error handling for video loading failures, invalid file types, missing scale calibration, and insufficient tracking points. Display user-friendly error messages.",
+			"tests": [
+				"Unit test: Error messages display for invalid inputs",
+				"Unit test: Validation prevents actions with insufficient data",
+				"E2E test: Error messages appear for failed video loads",
+				"Manual: Verify error messages are clear and actionable"
+			],
+			"implemented": false,
+			"tests_passed": false
+		}
+	]
+}

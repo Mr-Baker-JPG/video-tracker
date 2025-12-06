@@ -1,0 +1,74 @@
+---
+description: AI Development Workflow Rules - Feature-by-Feature Development with Testing
+globs: **/*
+alwaysApply: true
+---
+
+# AI Development Workflow Rules
+
+## ALWAYS_READ
+
+At the start of EVERY session, the agent MUST read:
+
+- `Claude.md` - Project overview and context
+- `features.json` - Feature list and progress tracking
+- `progress.md` - Development history and status
+
+## GENERAL CONDUCT
+
+- Always operate feature-by-feature.
+- Never modify any feature fields in `features.json` except:
+  - `implemented: false → true`
+  - `tests_passed: false → true`
+- Never add, remove, reorder, or rename features in `features.json`.
+- Never change feature titles, descriptions, or tests.
+- Never infer progress from code alone; always trust:
+  - `features.json`
+  - `progress.md`
+  - `git log`
+- Keep code in a working, mergeable state.
+
+## DEVELOPMENT LOOP
+
+For future CODING AGENT sessions, follow this loop:
+
+1. **Read Context**: Read `Claude.md`, `features.json`, `progress.md`.
+2. **Identify Next Feature**: Find the first feature where `implemented=false`.
+3. **Announce**: State the feature ID and tests to run.
+4. **Implement**: Implement ONLY that feature.
+5. **Run Tests**:
+   - `npm test` for unit tests (Vitest)
+   - `npm run test:e2e` for e2e/browser tests (Playwright)
+   - Any manual checks listed in the feature tests array
+6. **Complete Feature** (only if tests pass end-to-end):
+   - Set `implemented=true` and `tests_passed=true` in `features.json`.
+   - Append a dated entry to `progress.md` describing what was done and how it
+     was tested.
+   - Create a git commit with message: `feat: {id} {short description}`.
+7. **Show Summary**: Display git diff summary and final state of modified files.
+
+## RESUMING
+
+When starting a new chat, the agent must:
+
+1. Read `Claude.md` to understand the project.
+2. Read `features.json` to see completed vs incomplete features.
+3. Read `progress.md` and the last few git commits.
+4. Summarize current project state and next feature to implement.
+5. Then begin the DEVELOPMENT LOOP.
+
+## PROHIBITIONS
+
+- Do NOT compact or rewrite the feature list.
+- Do NOT skip tests.
+- Do NOT mark features complete based only on code appearance.
+- Do NOT implement more than one feature per iteration.
+- Do NOT modify existing feature definitions (title, description, tests).
+
+## COMPLETION
+
+When all features have `implemented=true` and `tests_passed=true`:
+
+- Announce completion.
+- Append a final summary section to `progress.md`.
+- Suggest optional cleanup tasks only if explicitly asked.
