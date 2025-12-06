@@ -185,3 +185,110 @@ test('User can play, pause, and seek through video', async ({
 		expect(parseFloat(restartedTime || '0')).toBeLessThan(0.1)
 	}
 })
+
+test('User can click on video to place a tracking point', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	// First, upload a video
+	await navigate('/videos/new')
+
+	// Use actual video file for more realistic testing
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	// File info should be displayed
+	await expect(page.getByText(videoFileName)).toBeVisible()
+
+	// Click upload
+	await page.getByRole('button', { name: /upload/i }).click()
+
+	// Wait for upload to complete
+	await expect(page).toHaveURL('/videos/new')
+
+	// Wait for video to be stored in database (with retry)
+	let video = null
+	for (let i = 0; i < 20; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+		})
+		if (video) break
+		await page.waitForTimeout(200) // Wait 200ms before retrying
+	}
+
+	expect(video).toBeDefined()
+	if (!video) {
+		throw new Error('Video not found')
+	}
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(
+		page.getByRole('heading', { name: video.filename }),
+	).toBeVisible()
+
+	// Check that video element exists
+	const videoElement = page.getByLabel('Video content')
+	await expect(videoElement).toBeVisible()
+
+	// Wait for video metadata to load
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
+
+	// Wait for canvas to be present (tracking canvas overlay)
+	const canvas = page.getByLabel(
+		'Tracking canvas - click to place tracking points',
+	)
+	await expect(canvas).toBeVisible()
+
+	// Get canvas dimensions for click coordinates
+	const canvasRect = await canvas.boundingBox()
+	expect(canvasRect).toBeDefined()
+	if (!canvasRect) {
+		throw new Error('Canvas element not found')
+	}
+
+	// Click on the canvas to place a tracking point
+	// Click near the center of the canvas
+	const clickX = canvasRect.width * 0.5
+	const clickY = canvasRect.height * 0.5
+
+	await canvas.click({ position: { x: clickX, y: clickY } })
+
+	// Wait a bit for the point to be saved
+	await page.waitForTimeout(500)
+
+	// Verify tracking point was created in database
+	const trackingPoints = await prisma.trackingPoint.findMany({
+		where: { videoId: video.id },
+	})
+
+	expect(trackingPoints.length).toBeGreaterThan(0)
+
+	// Verify the point has correct data
+	const point = trackingPoints[0]
+	expect(point).toBeDefined()
+	if (!point) {
+		throw new Error('Tracking point not found')
+	}
+	expect(point.frame).toBeGreaterThanOrEqual(0)
+	expect(point.x).toBeGreaterThanOrEqual(0)
+	expect(point.y).toBeGreaterThanOrEqual(0)
+	expect(point.videoId).toBe(video.id)
+})

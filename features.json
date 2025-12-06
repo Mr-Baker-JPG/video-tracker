@@ -78,8 +78,8 @@
 				"E2E test: User can click on video to place a tracking point",
 				"Manual: Verify points appear accurately at click locations on video"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F007",

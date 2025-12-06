@@ -1,13 +1,26 @@
 /**
  * @vitest-environment jsdom
  */
+import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { test, expect, vi } from 'vitest'
 import { VideoPlayer } from './video-player.tsx'
 
+// Helper to render VideoPlayer with router context
+function renderWithRouter(component: React.ReactElement) {
+	const router = createMemoryRouter([
+		{
+			path: '/',
+			element: component,
+		},
+	])
+	return render(<RouterProvider router={router} />)
+}
+
 test('Video player component renders with controls', () => {
-	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
 
 	// Check video element exists
 	const video = container.querySelector('video')
@@ -30,7 +43,7 @@ test('Video player component renders with controls', () => {
 
 test('Play/pause functionality works', async () => {
 	const user = userEvent.setup()
-	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
 
 	// Wait for video element to be rendered
 	await waitFor(() => {
@@ -100,7 +113,7 @@ test('Play/pause functionality works', async () => {
 
 test('Reload button appears when at the end of video', async () => {
 	const user = userEvent.setup()
-	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
 
 	await waitFor(() => {
 		const video = container.querySelector('video')
@@ -152,7 +165,7 @@ test('Reload button appears when at the end of video', async () => {
 
 test('3-second seek buttons work', async () => {
 	const user = userEvent.setup()
-	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
 
 	await waitFor(() => {
 		const video = container.querySelector('video')
@@ -195,7 +208,7 @@ test('3-second seek buttons work', async () => {
 })
 
 test('Time display includes milliseconds', () => {
-	const { container } = render(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
 
 	// Time display should show format with milliseconds (MM:SS.mmm)
 	// The time is split across multiple spans, so check the parent container

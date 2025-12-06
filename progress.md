@@ -261,3 +261,46 @@ implementation and testing of each feature as defined in `features.json`.
 - Video ID extraction is robust and handles edge cases
 - Form validation runs on blur and provides immediate feedback
 - All unit and E2E tests pass successfully
+
+---
+
+### F006: Tracking Point Marker
+
+**Date:** 2025-12-06
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Added TrackingPoint model to Prisma schema with fields: id, videoId, frame, x, y, createdAt
+- Created database migration for TrackingPoint model
+- Updated video player component to:
+  - Add canvas overlay on top of video element for click tracking
+  - Handle clicks on canvas to place tracking points at specific frames
+  - Convert click coordinates from canvas space to video coordinate space (accounting for video scaling/letterboxing)
+  - Display tracking points as red circles with crosshairs on the canvas
+  - Only show tracking points for the current frame
+  - Store tracking points in database via server action
+- Created server action in `/videos/$videoId` route to:
+  - Validate tracking point data (frame, x, y coordinates)
+  - Verify user ownership of video
+  - Save tracking points to database
+- Updated video route loader to fetch and pass existing tracking points to video player
+- Implemented coordinate conversion to handle video aspect ratio differences and letterboxing
+
+**Testing:**
+
+- ✅ Unit test: Tracking point can be created with x, y, frame data (passing)
+- ✅ Unit test: Point coordinates are correctly stored (passing)
+- ✅ Unit test: Multiple tracking points can be stored for same video (passing)
+- ✅ E2E test: User can click on video to place a tracking point (passing)
+- ✅ All existing video player tests still pass (passing)
+
+**Notes:**
+
+- Canvas overlay is positioned absolutely over the video element
+- Tracking points are stored with pixel coordinates relative to the video's actual dimensions (not the displayed size)
+- Coordinate conversion handles both letterboxing (top/bottom) and pillarboxing (left/right) scenarios
+- Points are only displayed for the current frame (calculated at 30fps)
+- Canvas automatically resizes to match video display size
+- All unit and E2E tests pass successfully

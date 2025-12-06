@@ -1,10 +1,20 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
+import { useFetcher } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+
+interface TrackingPoint {
+	id: string
+	frame: number
+	x: number
+	y: number
+}
 
 interface VideoPlayerProps {
 	src: string
 	className?: string
+	videoId?: string
+	trackingPoints?: TrackingPoint[]
 }
 
 function formatTime(seconds: number): string {
@@ -15,14 +25,26 @@ function formatTime(seconds: number): string {
 	return `${mins}:${secs.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
 }
 
-export function VideoPlayer({ src, className }: VideoPlayerProps) {
+export function VideoPlayer({
+	src,
+	className,
+	videoId,
+	trackingPoints = [],
+}: VideoPlayerProps) {
 	const videoRef = useRef<HTMLVideoElement>(null)
+	const canvasRef = useRef<HTMLCanvasElement>(null)
+	const containerRef = useRef<HTMLDivElement>(null)
 	const isSeekingRef = useRef(false)
+	// useFetcher must be called unconditionally (React hook rule)
+	// We'll only use it when videoId is provided
+	const fetcher = useFetcher()
 	const [isPlaying, setIsPlaying] = useState(false)
 	const [isEnded, setIsEnded] = useState(false)
 	const [currentTime, setCurrentTime] = useState(0)
 	const [duration, setDuration] = useState(0)
 	const [currentFrame, setCurrentFrame] = useState(0)
+	const [localTrackingPoints, setLocalTrackingPoints] =
+		useState<TrackingPoint[]>(trackingPoints)
 
 	const handlePlayPause = useCallback(() => {
 		const video = videoRef.current
@@ -247,9 +269,216 @@ export function VideoPlayer({ src, className }: VideoPlayerProps) {
 		return () => clearInterval(interval)
 	}, [src])
 
+	// Update local tracking points when prop changes
+	// Use a ref to track previous value to avoid infinite loops
+	const prevTrackingPointsRef = useRef<string>('')
+	useEffect(() => {
+		const newStr = JSON.stringify(trackingPoints)
+		if (prevTrackingPointsRef.current !== newStr) {
+			prevTrackingPointsRef.current = newStr
+			setLocalTrackingPoints(trackingPoints)
+		}
+	}, [trackingPoints])
+
+	// Handle canvas click to place tracking point
+	const handleCanvasClick = useCallback(
+		(e: React.MouseEvent<HTMLCanvasElement>) => {
+			if (!videoId || !canvasRef.current || !videoRef.current) return
+
+			const canvas = canvasRef.current
+			const video = videoRef.current
+			const rect = canvas.getBoundingClientRect()
+
+			// Get click position relative to canvas
+			const canvasX = e.clientX - rect.left
+			const canvasY = e.clientY - rect.top
+
+			// Convert to video coordinates (accounting for video scaling)
+			// The video might be scaled to fit the container, so we need to calculate
+			// the actual video dimensions vs displayed dimensions
+			const videoAspect = video.videoWidth / video.videoHeight
+			const canvasAspect = canvas.width / canvas.height
+
+			let x: number
+			let y: number
+
+			if (videoAspect > canvasAspect) {
+				// Video is wider - letterboxing on top/bottom
+				const scale = canvas.width / video.videoWidth
+				const scaledHeight = video.videoHeight * scale
+				const offsetY = (canvas.height - scaledHeight) / 2
+				x = canvasX / scale
+				y = (canvasY - offsetY) / scale
+			} else {
+				// Video is taller - letterboxing on left/right
+				const scale = canvas.height / video.videoHeight
+				const scaledWidth = video.videoWidth * scale
+				const offsetX = (canvas.width - scaledWidth) / 2
+				x = (canvasX - offsetX) / scale
+				y = canvasY / scale
+			}
+
+			// Ensure coordinates are within video bounds
+			x = Math.max(0, Math.min(x, video.videoWidth))
+			y = Math.max(0, Math.min(y, video.videoHeight))
+
+			// Calculate current frame (assuming 30 fps)
+			const fps = 30
+			const frame = Math.floor(currentTime * fps)
+
+			// Create tracking point locally for immediate feedback
+			const newPoint: TrackingPoint = {
+				id: `temp-${Date.now()}`,
+				frame,
+				x,
+				y,
+			}
+
+			setLocalTrackingPoints((prev) => [...prev, newPoint])
+
+			// Save to server
+			const formData = new FormData()
+			formData.append('intent', 'create-tracking-point')
+			formData.append('videoId', videoId)
+			formData.append('frame', frame.toString())
+			formData.append('x', x.toString())
+			formData.append('y', y.toString())
+
+			if (videoId && fetcher) {
+				void fetcher.submit(formData, {
+					method: 'POST',
+				})
+			}
+		},
+		[videoId, currentTime, fetcher],
+	)
+
+	// Draw tracking points on canvas
+	useEffect(() => {
+		const canvas = canvasRef.current
+		const video = videoRef.current
+		if (!canvas || !video) return
+
+		const ctx = canvas.getContext('2d')
+		if (!ctx) return
+
+		// Don't draw if video dimensions aren't loaded yet
+		if (video.videoWidth === 0 || video.videoHeight === 0) return
+
+		// Set canvas size to match video display size
+		const updateCanvasSize = () => {
+			const rect = video.getBoundingClientRect()
+			canvas.width = rect.width
+			canvas.height = rect.height
+		}
+
+		updateCanvasSize()
+
+		// Redraw when video size changes or tracking points change
+		const drawPoints = () => {
+			ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+			// Don't draw if video dimensions aren't loaded yet
+			if (video.videoWidth === 0 || video.videoHeight === 0) return
+
+			// Only draw points for the current frame
+			const fps = 30
+			const frame = Math.floor(currentTime * fps)
+
+			const pointsForFrame = localTrackingPoints.filter(
+				(point) => point.frame === frame,
+			)
+
+			if (pointsForFrame.length === 0) return
+
+			// Calculate scaling factor to convert video coordinates to canvas coordinates
+			const videoAspect = video.videoWidth / video.videoHeight
+			const canvasAspect = canvas.width / canvas.height
+
+			let scale: number
+			let offsetX = 0
+			let offsetY = 0
+
+			if (videoAspect > canvasAspect) {
+				// Video is wider - letterboxing on top/bottom
+				scale = canvas.width / video.videoWidth
+				const scaledHeight = video.videoHeight * scale
+				offsetY = (canvas.height - scaledHeight) / 2
+			} else {
+				// Video is taller - letterboxing on left/right
+				scale = canvas.height / video.videoHeight
+				const scaledWidth = video.videoWidth * scale
+				offsetX = (canvas.width - scaledWidth) / 2
+			}
+
+			pointsForFrame.forEach((point) => {
+				// Convert video coordinates to canvas coordinates
+				const canvasX = point.x * scale + offsetX
+				const canvasY = point.y * scale + offsetY
+
+				// Draw point
+				ctx.fillStyle = '#ff0000'
+				ctx.beginPath()
+				ctx.arc(canvasX, canvasY, 5, 0, 2 * Math.PI)
+				ctx.fill()
+
+				// Draw crosshair
+				ctx.strokeStyle = '#ff0000'
+				ctx.lineWidth = 1
+				ctx.beginPath()
+				ctx.moveTo(canvasX - 10, canvasY)
+				ctx.lineTo(canvasX + 10, canvasY)
+				ctx.moveTo(canvasX, canvasY - 10)
+				ctx.lineTo(canvasX, canvasY + 10)
+				ctx.stroke()
+			})
+		}
+
+		drawPoints()
+
+		// Update canvas size on video resize
+		const resizeObserver = new ResizeObserver(() => {
+			updateCanvasSize()
+			drawPoints()
+		})
+
+		resizeObserver.observe(video)
+
+		// Also redraw when video metadata loads (to get video dimensions)
+		const handleVideoLoaded = () => {
+			updateCanvasSize()
+			drawPoints()
+		}
+
+		video.addEventListener('loadedmetadata', handleVideoLoaded)
+
+		return () => {
+			resizeObserver.disconnect()
+			video.removeEventListener('loadedmetadata', handleVideoLoaded)
+		}
+	}, [currentTime, localTrackingPoints])
+
+	// Update local tracking points when fetcher returns new data
+	useEffect(() => {
+		if (fetcher?.data?.success && fetcher.data?.trackingPoint) {
+			const newPoint = fetcher.data.trackingPoint as TrackingPoint
+			setLocalTrackingPoints((prev) => {
+				// Replace temp point with real one if it exists
+				const tempIndex = prev.findIndex((p) => p.id.startsWith('temp-'))
+				if (tempIndex >= 0) {
+					const updated = [...prev]
+					updated[tempIndex] = newPoint
+					return updated
+				}
+				// Otherwise add new point
+				return [...prev, newPoint]
+			})
+		}
+	}, [fetcher?.data])
+
 	return (
 		<div className={className}>
-			<div className="relative">
+			<div className="relative" ref={containerRef}>
 				<video
 					ref={videoRef}
 					src={src}
@@ -265,6 +494,15 @@ export function VideoPlayer({ src, className }: VideoPlayerProps) {
 					onError={handleError}
 					aria-label="Video content"
 				/>
+				{videoId && (
+					<canvas
+						ref={canvasRef}
+						className="absolute left-0 top-0 cursor-crosshair rounded-lg"
+						onClick={handleCanvasClick}
+						style={{ pointerEvents: 'auto' }}
+						aria-label="Tracking canvas - click to place tracking points"
+					/>
+				)}
 			</div>
 
 			<div className="mt-4 space-y-2">
