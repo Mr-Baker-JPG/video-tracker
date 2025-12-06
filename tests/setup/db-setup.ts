@@ -9,6 +9,8 @@ process.env.DATABASE_URL = `file:${databasePath}`
 
 beforeEach(async () => {
 	await fsExtra.copyFile(BASE_DATABASE_PATH, databasePath)
+	// Ensure the database file has write permissions
+	await fsExtra.chmod(databasePath, 0o666)
 })
 
 afterAll(async () => {

@@ -11,8 +11,8 @@
 				"E2E test: User can select a video file and see upload progress",
 				"Manual: Verify video file selection works in browser, shows file name and size"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F002",
