@@ -267,6 +267,25 @@
 			],
 			"implemented": false,
 			"tests_passed": false
+		},
+		{
+			"id": "F021",
+			"title": "Line of Best Fit and Mathematical Model for Graphs",
+			"description": "Add buttons to each graph (position vs time, velocity vs time, acceleration vs time) that allow users to generate a line of best fit. Users can select the fit type (linear, quadratic, polynomial, etc.). The line of best fit is displayed overlaid on the graph. A separate button opens a panel showing the mathematical model with the equation, R² value, and coefficients, suitable for physics class analysis.",
+			"tests": [
+				"Unit test: Line of best fit calculation works for linear regression",
+				"Unit test: Line of best fit calculation works for polynomial regression",
+				"Unit test: R² value is calculated correctly",
+				"Unit test: Coefficients are calculated correctly for selected fit type",
+				"Unit test: Mathematical model panel displays equation, R², and coefficients",
+				"E2E test: User can select fit type and generate line of best fit on position graph",
+				"E2E test: User can view mathematical model panel with statistics",
+				"E2E test: Line of best fit appears overlaid on the graph",
+				"Manual: Verify line of best fit visually matches data trend",
+				"Manual: Verify mathematical model statistics are accurate for physics analysis"
+			],
+			"implemented": false,
+			"tests_passed": false
 		}
 	]
 }
