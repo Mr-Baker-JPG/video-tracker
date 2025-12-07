@@ -128,6 +128,8 @@ export function VideoPlayer({
 			if (!video) return
 			const newTime = parseFloat(e.target.value)
 			isSeekingRef.current = true
+			seekTimeRef.current = newTime
+			setSeekTime(newTime)
 			// Update state immediately for smooth UI
 			setCurrentTime(newTime)
 			// Update video currentTime (may take a moment to seek)
@@ -826,14 +828,52 @@ export function VideoPlayer({
 						{formatTime(currentTime)}
 					</span>
 					<div className="relative flex flex-1 cursor-pointer items-center">
-						<div className="absolute h-1 w-full rounded-full bg-slate-200 transition-all group-hover/scrubber:h-1.5" />
+						{/* Progress bar background */}
 						<div
-							className="bg-primary absolute h-1 rounded-full transition-all group-hover/scrubber:h-1.5"
+							className="absolute h-1 w-full rounded-full transition-all group-hover/scrubber:h-1.5"
+							style={{
+								backgroundColor: 'var(--player-progress-bg)',
+							}}
+						/>
+						{/* Timeline markers for tracked frames */}
+						{localTrackingPoints.length > 0 &&
+							duration > 0 &&
+							Array.from(new Set(localTrackingPoints.map((p) => p.frame))).map(
+								(frame) => {
+									const frameTime = frame / 30 // Assuming 30fps
+									const position = (frameTime / duration) * 100
+									return (
+										<div
+											key={frame}
+											className="absolute top-0 h-1 w-0.5 rounded-sm opacity-60 transition-all hover:h-3 hover:bg-[var(--data-select)] hover:opacity-100"
+											style={{
+												left: `${position}%`,
+												backgroundColor: 'var(--data-position)',
+												transform: 'translateX(-50%)',
+											}}
+											title={`Frame ${frame + 1}`}
+										/>
+									)
+								},
+							)}
+						{/* Progress bar filled portion - green when tracking, primary when not */}
+						<div
+							className="absolute h-1 rounded-full transition-all group-hover/scrubber:h-1.5"
 							style={{
 								width: `${
 									duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
 								}%`,
-								transition: isSeeking ? 'none' : undefined,
+								backgroundColor:
+									localTrackingPoints.length > 0
+										? 'var(--data-position)'
+										: 'var(--primary)',
+								// No transition for width during playback - update immediately for smoothness
+								// Only transition background color changes
+								transition: isSeeking
+									? 'none'
+									: isPlaying
+										? 'background-color 0.2s ease'
+										: 'width 0.05s linear, background-color 0.2s ease',
 							}}
 						/>
 						<input
@@ -847,18 +887,29 @@ export function VideoPlayer({
 							onMouseUp={handleSeekEnd}
 							onTouchStart={handleSeekStart}
 							onTouchEnd={handleSeekEnd}
-							step="0.001"
+							step="0.0001"
 							className="absolute z-10 h-3 w-full cursor-pointer appearance-none bg-transparent opacity-0"
 							aria-label="Video seek"
 						/>
+						{/* Scrubber handle */}
 						<div
-							className="border-primary pointer-events-none absolute h-3 w-3 rounded-full border-2 bg-white shadow transition-transform hover:scale-125"
+							className="pointer-events-none absolute h-3 w-3 rounded-full border-2 bg-white shadow transition-all group-hover/scrubber:scale-[1.3] group-hover/scrubber:border-[var(--data-select)] group-hover/scrubber:shadow-[0_0_0_4px_var(--data-select)/0.2]"
 							style={{
 								left: `${
 									duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
 								}%`,
 								transform: 'translateX(-50%)',
-								transition: isSeeking ? 'none' : undefined,
+								borderColor:
+									localTrackingPoints.length > 0
+										? 'var(--data-position)'
+										: 'var(--primary)',
+								// No transition for position during playback - update immediately for smoothness
+								// Only transition border color changes
+								transition: isSeeking
+									? 'none'
+									: isPlaying
+										? 'border-color 0.2s ease'
+										: 'left 0.05s linear, border-color 0.2s ease',
 							}}
 						/>
 					</div>
@@ -869,8 +920,29 @@ export function VideoPlayer({
 
 				{/* Controls */}
 				<div className="grid grid-cols-3 items-center gap-4">
-					{/* Left spacer */}
-					<div />
+					{/* Left spacer or tracking indicator */}
+					<div className="flex items-center">
+						{activeTrackingObjectId && (
+							<div
+								className="flex items-center gap-2 rounded-2xl px-3 py-1.5"
+								style={{
+									backgroundColor: 'var(--player-progress-bg)',
+									color: 'white',
+								}}
+							>
+								<div
+									className="h-2 w-2 rounded-full"
+									style={{
+										backgroundColor: 'var(--success)',
+										animation: 'pulse 2s ease-in-out infinite',
+									}}
+								/>
+								<span className="text-xs font-medium">
+									Tracking: Object {activeTrackingObjectId.slice(-6)}
+								</span>
+							</div>
+						)}
+					</div>
 					{/* Centered controls */}
 					<div className="flex items-center justify-center gap-1">
 						{/* Double left: 3 seconds backward */}
@@ -881,7 +953,7 @@ export function VideoPlayer({
 							onClick={seekBackward}
 							aria-label="Seek backward 3 seconds"
 							title="Seek backward 3 seconds"
-							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
 						>
 							<Icon name="double-arrow-left" className="h-6 w-6" />
 						</Button>
@@ -893,7 +965,7 @@ export function VideoPlayer({
 							onClick={goToPreviousFrame}
 							aria-label="Previous frame"
 							title="Previous frame"
-							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
 						>
 							<Icon name="chevron-left" className="h-6 w-6" />
 						</Button>
@@ -902,7 +974,7 @@ export function VideoPlayer({
 							type="button"
 							variant="default"
 							size="icon"
-							className="cursor-pointer rounded-full bg-white hover:bg-white/80"
+							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2] active:bg-[var(--primary-hover)]"
 							onClick={handlePlayPause}
 							aria-label={
 								currentTime >= duration && duration > 0
@@ -924,7 +996,7 @@ export function VideoPlayer({
 							) : isPlaying ? (
 								<Icon name="pause" />
 							) : (
-								<Icon name="play" className="fill-current text-black" />
+								<Icon name="play" className="fill-current" />
 							)}
 						</Button>
 						{/* Single right: Next frame */}
@@ -935,7 +1007,7 @@ export function VideoPlayer({
 							onClick={goToNextFrame}
 							aria-label="Next frame"
 							title="Next frame"
-							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
 						>
 							<Icon name="chevron-right" className="h-6 w-6" />
 						</Button>
@@ -947,7 +1019,7 @@ export function VideoPlayer({
 							onClick={seekForward}
 							aria-label="Seek forward 3 seconds"
 							title="Seek forward 3 seconds"
-							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
 						>
 							<Icon name="double-arrow-right" className="h-6 w-6" />
 						</Button>
@@ -958,7 +1030,13 @@ export function VideoPlayer({
 							<span className="text-[9px] font-bold tracking-wider text-slate-500 uppercase">
 								Frame
 							</span>
-							<div className="flex items-baseline gap-1 font-mono text-xs text-slate-900">
+							<div
+								className="flex items-baseline gap-1 rounded px-2 py-1 font-mono text-xs"
+								style={{
+									backgroundColor: 'var(--player-progress-bg)',
+									color: 'var(--muted-foreground)',
+								}}
+							>
 								<span className="font-bold text-white">
 									{Math.ceil(currentTime * 30) + 1}
 								</span>

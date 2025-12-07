@@ -612,7 +612,10 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Testing Updates:**
 
-- ✅ Fixed video player test: Updated time display test to match new layout (spans with `font-mono text-[10px] text-slate-600` classes)
-- ✅ Fixed position graph tests: Updated to use Tabs component instead of buttons, removed checks for commented-out title
-- ✅ Fixed velocity graph tests: Updated to use Tabs component instead of buttons, removed checks for commented-out title
+- ✅ Fixed video player test: Updated time display test to match new layout
+  (spans with `font-mono text-[10px] text-slate-600` classes)
+- ✅ Fixed position graph tests: Updated to use Tabs component instead of
+  buttons, removed checks for commented-out title
+- ✅ Fixed velocity graph tests: Updated to use Tabs component instead of
+  buttons, removed checks for commented-out title
 - ✅ All component tests now passing (18/18 tests)

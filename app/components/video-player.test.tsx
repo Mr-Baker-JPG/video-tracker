@@ -217,7 +217,7 @@ test('Time display includes milliseconds', () => {
 		'span.font-mono.text-\\[10px\\].text-slate-600',
 	)
 	expect(timeSpans.length).toBeGreaterThan(0)
-	
+
 	// Check that at least one time span contains the millisecond format
 	const timeText = Array.from(timeSpans)
 		.map((span) => span.textContent)

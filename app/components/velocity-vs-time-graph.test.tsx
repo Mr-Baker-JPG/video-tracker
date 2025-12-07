@@ -26,7 +26,9 @@ test('Graph component receives and displays tracking data', () => {
 	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 
 	// Check that the graph container is rendered (ResponsiveContainer creates a div)
-	const graphContainer = screen.getByRole('tab', { name: /x axis/i }).closest('.space-y-4')
+	const graphContainer = screen
+		.getByRole('tab', { name: /x axis/i })
+		.closest('.space-y-4')
 	expect(graphContainer).toBeInTheDocument()
 })
 
