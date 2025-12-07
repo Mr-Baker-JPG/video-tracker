@@ -459,3 +459,43 @@ implementation and testing of each feature as defined in `features.json`.
 - Export button is disabled when no tracking points exist
 - Filename is generated from video filename with `_tracking_data.csv` suffix
 - All unit and E2E tests pass successfully
+
+---
+
+### F010: Position vs Time Graph
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Installed Recharts library for charting functionality
+- Created `PositionVsTimeGraph` component in `app/components/position-vs-time-graph.tsx` with:
+  - LineChart component from Recharts to display position vs time data
+  - Toggle buttons to switch between X and Y axes
+  - Support for multiple tracking objects with different colors
+  - Automatic time calculation from frame numbers (using 30fps)
+  - Support for meter conversions when scale is available
+  - Empty state message when no tracking data exists
+- Integrated graph component into video route (`/videos/$videoId`) below the video player
+- Graph displays tracking data grouped by tracking object with separate lines for each object
+- Y-axis label updates dynamically based on selected axis (X or Y) and scale availability
+
+**Testing:**
+
+- ✅ Unit test: Graph component receives and displays tracking data (passing)
+- ✅ Unit test: X/Y toggle switches graph axes correctly (passing)
+- ✅ Unit test: Graph component shows empty state when no tracking data (passing)
+- ✅ Unit test: Graph displays meter units when scale is provided (passing)
+- ✅ Unit test: Graph handles multiple tracking objects (passing)
+- ✅ E2E test: User can view position vs time graph (added to video-player.test.ts, passing)
+
+**Notes:**
+
+- Recharts ResponsiveContainer requires container dimensions; warnings are suppressed in tests
+- Graph uses 30fps assumption for time calculation (consistent with other features)
+- Multiple tracking objects are displayed with different colors based on object ID
+- Graph supports both pixel and meter units depending on scale calibration
+- Toggle buttons use shadcn/ui Button component with variant styling
+- All unit tests pass successfully; E2E test verifies graph display and toggle functionality

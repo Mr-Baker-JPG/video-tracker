@@ -2,6 +2,7 @@ import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { data } from 'react-router'
 import { z } from 'zod'
+import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
 import { VideoPlayer } from '#app/components/video-player.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -307,11 +308,15 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	return (
-		<div className="mx-auto max-w-4xl">
+		<div className="mx-auto max-w-4xl space-y-8">
 			<h1 className="text-h1 mb-8">{loaderData.video.filename}</h1>
 			<VideoPlayer
 				src={loaderData.videoSrc}
 				videoId={loaderData.video.id}
+				trackingPoints={loaderData.trackingPoints}
+				scale={loaderData.scale}
+			/>
+			<PositionVsTimeGraph
 				trackingPoints={loaderData.trackingPoints}
 				scale={loaderData.scale}
 			/>

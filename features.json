@@ -130,8 +130,8 @@
 				"E2E test: User can view position vs time graph",
 				"Manual: Verify graph displays correctly with sample tracking data"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F011",
