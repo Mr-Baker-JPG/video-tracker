@@ -29,7 +29,6 @@ const SaveScaleSchema = z.object({
 	distanceMeters: z.coerce.number().positive(),
 })
 
-
 export async function loader({ params, request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 
