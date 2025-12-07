@@ -509,3 +509,54 @@ implementation and testing of each feature as defined in `features.json`.
 - Toggle buttons use shadcn/ui Button component with variant styling
 - All unit tests pass successfully; E2E test verifies graph display and toggle
   functionality
+
+---
+
+### F011: Velocity Calculation and Graph
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Created `VelocityVsTimeGraph` component in
+  `app/components/velocity-vs-time-graph.tsx` with:
+  - Velocity calculation function using v = Δx/Δt (or Δy/Δt)
+  - Edge case handling:
+    - First frame: uses forward difference (next point - current point)
+    - Last frame: uses backward difference (current point - previous point)
+    - Middle frames: uses forward difference
+  - Support for X/Y axis toggle (similar to position graph)
+  - Automatic conversion to m/s when scale is available
+  - Support for multiple tracking objects with different colors
+  - Empty state message when no tracking data exists
+- Integrated velocity graph into video route (`/videos/$videoId`) below the
+  position graph
+- Graph displays velocity data grouped by tracking object with separate lines
+  for each object
+- Y-axis label updates dynamically based on selected axis (X or Y) and scale
+  availability
+
+**Testing:**
+
+- ✅ Unit test: Velocity calculation is correct for sample data (passing)
+- ✅ Unit test: Velocity handles edge cases (first/last frames) (passing)
+- ✅ Unit test: Velocity converts to m/s when scale is available (passing)
+- ✅ Unit test: Graph component receives and displays tracking data (passing)
+- ✅ Unit test: X/Y toggle switches graph axes correctly (passing)
+- ✅ Unit test: Graph component shows empty state when no tracking data (passing)
+- ✅ Unit test: Graph handles multiple tracking objects (passing)
+- ✅ E2E test: User can view velocity vs time graph (passing)
+
+**Notes:**
+
+- Velocity calculation uses forward difference for all frames except the last
+  (which uses backward difference)
+- Single point tracking results in velocity of 0 (no change)
+- Graph uses same styling and tick generation logic as position graph for
+  consistency
+- Velocity is calculated in pixels/s when no scale is available, and converted
+  to m/s when scale calibration is set
+- All unit tests pass successfully; E2E test verifies graph display and toggle
+  functionality

@@ -795,3 +795,115 @@ test('User can view position vs time graph', async ({
 	await expect(xAxisButton).toHaveClass(/bg-primary/)
 	await expect(yAxisButton).not.toHaveClass(/bg-primary/)
 })
+
+test('User can view velocity vs time graph', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	// Upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Create tracking points directly in database
+	// These points represent an object moving at constant velocity
+	// Frame 0: x=100, Frame 30: x=150 (50 pixels in 1 second = 50 pixels/s)
+	// Frame 60: x=200 (50 pixels in 1 second = 50 pixels/s)
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 100,
+				y: 200,
+				trackingObjectId: 'obj_velocity_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 150,
+				y: 250,
+				trackingObjectId: 'obj_velocity_1',
+			},
+			{
+				videoId: video.id,
+				frame: 60,
+				x: 200,
+				y: 300,
+				trackingObjectId: 'obj_velocity_1',
+			},
+		],
+	})
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
+
+	// Wait for velocity graph to be visible
+	await expect(page.getByText('Velocity vs Time')).toBeVisible()
+
+	// Check that axis toggle buttons are present
+	const xAxisButton = page
+		.locator('text=Velocity vs Time')
+		.locator('..')
+		.getByRole('button', { name: /x axis/i })
+	const yAxisButton = page
+		.locator('text=Velocity vs Time')
+		.locator('..')
+		.getByRole('button', { name: /y axis/i })
+
+	await expect(xAxisButton).toBeVisible()
+	await expect(yAxisButton).toBeVisible()
+
+	// Verify graph container is rendered (Recharts creates SVG elements)
+	const graphContainer = page.locator('text=Velocity vs Time').locator('..')
+	await expect(graphContainer).toBeVisible()
+
+	// Test X/Y toggle functionality
+	// Initially X should be selected (default)
+	await expect(xAxisButton).toHaveClass(/bg-primary/)
+
+	// Click Y axis button
+	await yAxisButton.click()
+
+	// Y should now be selected
+	await expect(yAxisButton).toHaveClass(/bg-primary/)
+	await expect(xAxisButton).not.toHaveClass(/bg-primary/)
+
+	// Click X axis button again
+	await xAxisButton.click()
+
+	// X should be selected again
+	await expect(xAxisButton).toHaveClass(/bg-primary/)
+	await expect(yAxisButton).not.toHaveClass(/bg-primary/)
+})

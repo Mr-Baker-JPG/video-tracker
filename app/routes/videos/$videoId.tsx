@@ -3,6 +3,7 @@ import { invariantResponse } from '@epic-web/invariant'
 import { data } from 'react-router'
 import { z } from 'zod'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
+import { VelocityVsTimeGraph } from '#app/components/velocity-vs-time-graph.tsx'
 import { VideoPlayer } from '#app/components/video-player.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -317,6 +318,10 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 				scale={loaderData.scale}
 			/>
 			<PositionVsTimeGraph
+				trackingPoints={loaderData.trackingPoints}
+				scale={loaderData.scale}
+			/>
+			<VelocityVsTimeGraph
 				trackingPoints={loaderData.trackingPoints}
 				scale={loaderData.scale}
 			/>

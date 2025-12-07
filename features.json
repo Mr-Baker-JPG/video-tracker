@@ -144,8 +144,8 @@
 				"E2E test: User can view velocity vs time graph",
 				"Manual: Verify velocity calculations match expected physics results"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F012",
