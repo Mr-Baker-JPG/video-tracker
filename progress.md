@@ -30,7 +30,7 @@ implementation and testing of each feature as defined in `features.json`.
 
 ### F001: Video Upload UI
 
-**Date:** 2025-01-27
+**Date:** 2025-12-06
 
 **Status:** ✅ Implemented and tests passing
 
@@ -65,7 +65,7 @@ implementation and testing of each feature as defined in `features.json`.
 
 ### F002: Video Storage and Database Model
 
-**Date:** 2025-01-27
+**Date:** 2025-12-06
 
 **Status:** ✅ Implemented and tests passing
 
@@ -104,7 +104,7 @@ implementation and testing of each feature as defined in `features.json`.
 
 ### F003: Video Player Component
 
-**Date:** 2025-01-27 (initial), 2025-01-27 (enhancements)
+**Date:** 2025-12-06 (initial), 2025-12-06 (enhancements)
 
 **Status:** ✅ Implemented and tests passing
 
@@ -172,7 +172,7 @@ implementation and testing of each feature as defined in `features.json`.
 
 ### F004: Video List/Management Page
 
-**Date:** 2025-01-27
+**Date:** 2025-12-06
 
 **Status:** ✅ Implemented and tests passing
 
@@ -220,7 +220,7 @@ implementation and testing of each feature as defined in `features.json`.
 
 ### F005: YouTube URL Input
 
-**Date:** 2025-01-27
+**Date:** 2025-12-06
 
 **Status:** ✅ Implemented and tests passing
 
@@ -383,8 +383,8 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Implementation:**
 
-- Added VideoScale model to Prisma schema with fields: id, videoId, startX, startY,
-  endX, endY, distanceMeters, pixelsPerMeter, createdAt, updatedAt
+- Added VideoScale model to Prisma schema with fields: id, videoId, startX,
+  startY, endX, endY, distanceMeters, pixelsPerMeter, createdAt, updatedAt
 - Created database migration for VideoScale model
 - Updated video player component to:
   - Add scale calibration UI section with "Set Scale" button

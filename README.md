@@ -1,6 +1,8 @@
 # Videotrack
 
-A physics video analysis application that allows users to upload videos or input YouTube URLs to perform object tracking, collect position/time data, and generate physics-based graphs and visualizations.
+A physics video analysis application that allows users to upload videos or input
+YouTube URLs to perform object tracking, collect position/time data, and
+generate physics-based graphs and visualizations.
 
 <div align="center">
 
@@ -34,7 +36,8 @@ Videotrack enables physics students and educators to:
 - 🔄 Save and load tracking sessions
 - 🔄 Multiple object tracking
 
-See [`features.json`](./features.json) for the complete feature list and progress.
+See [`features.json`](./features.json) for the complete feature list and
+progress.
 
 ## Tech Stack
 
@@ -96,14 +99,20 @@ npm run validate
 
 ## AI-Driven Development Workflow
 
-This project uses a structured, version-aware, feature-by-feature development workflow powered by AI assistance. All development follows strict rules defined in [`.cursor/rules/ai-workflow.mdc`](.cursor/rules/ai-workflow.mdc).
+This project uses a structured, version-aware, feature-by-feature development
+workflow powered by AI assistance. All development follows strict rules defined
+in [`.cursor/rules/ai-workflow.mdc`](.cursor/rules/ai-workflow.mdc).
 
 ### Overview
 
 The workflow ensures:
-- **Systematic development**: One feature at a time, fully tested before completion
-- **Version boundaries**: Features are organized into versions with explicit states
-- **Persistent tracking**: All state stored in JSON/Markdown files, not context memory
+
+- **Systematic development**: One feature at a time, fully tested before
+  completion
+- **Version boundaries**: Features are organized into versions with explicit
+  states
+- **Persistent tracking**: All state stored in JSON/Markdown files, not context
+  memory
 - **Resumable work**: Any developer or AI agent can pick up from any point
 
 ### Workflow Diagram
@@ -112,39 +121,39 @@ The workflow ensures:
 graph TB
     Start([Start]) --> PlanVersion[Plan Version<br/>@plan-version]
     PlanVersion --> |Create version entry| VersionPlanned[Version: planned]
-    
+
     VersionPlanned --> ActivateVersion[Activate Version<br/>@activate-version]
     ActivateVersion --> |Check previous completion| CheckPrev{Previous<br/>Complete?}
-    
+
     CheckPrev -->|Yes| CreateFeatures[Create Features<br/>in features.json]
     CheckPrev -->|No| StashDeferred[Stash incomplete<br/>as deferred]
     StashDeferred --> CreateFeatures
-    
+
     CreateFeatures --> |Set status active| VersionActive[Version: active]
     VersionActive --> |Update package.json| NextFeature[Implement Next Feature<br/>@next-feature]
-    
+
     NextFeature --> Implement[Implement Feature]
     Implement --> RunTests[Run Tests<br/>npm test<br/>npm run test:e2e]
-    
+
     RunTests --> TestsPass{Tests<br/>Pass?}
     TestsPass -->|No| FixCode[Fix Implementation]
     FixCode --> RunTests
-    
+
     TestsPass -->|Yes| MarkComplete[Mark Feature Complete<br/>Update progress.md<br/>Create Git Commit]
-    
+
     MarkComplete --> CheckVersionComplete{All Features<br/>Complete?}
     CheckVersionComplete -->|No| NextFeature
     CheckVersionComplete -->|Yes| VersionComplete[Version Complete]
-    
+
     VersionComplete --> Transition[Transition Version<br/>@activate-version]
     Transition --> |Set status implemented| VersionImplemented[Version: implemented]
-    
+
     VersionImplemented --> |Bump version| BumpVersion[@bump-version]
     BumpVersion --> PlanVersion
-    
+
     VersionActive --> WorkDeferred[Work on Deferred<br/>@work-deferred]
     WorkDeferred --> NextFeature
-    
+
     style VersionPlanned fill:#e1f5ff
     style VersionActive fill:#fff4e1
     style VersionImplemented fill:#e8f5e9
@@ -178,16 +187,17 @@ graph TB
 
 ### Commands
 
-| Command | Purpose |
-|---------|---------|
-| `@plan-version` | Plan a new version (PRD, architecture, versions.json) |
-| `@activate-version` | Transition planned → active, create features |
-| `@next-feature` | Implement next unimplemented feature |
-| `@new-feature` | Add a single new feature to features.json |
-| `@work-deferred` | Implement deferred/backlog features |
-| `@bump-version` | Update package.json version |
+| Command             | Purpose                                               |
+| ------------------- | ----------------------------------------------------- |
+| `@plan-version`     | Plan a new version (PRD, architecture, versions.json) |
+| `@activate-version` | Transition planned → active, create features          |
+| `@next-feature`     | Implement next unimplemented feature                  |
+| `@new-feature`      | Add a single new feature to features.json             |
+| `@work-deferred`    | Implement deferred/backlog features                   |
+| `@bump-version`     | Update package.json version                           |
 
-For detailed workflow documentation, see [`AI-Workflow-Overview.md`](./AI-Workflow-Overview.md).
+For detailed workflow documentation, see
+[`AI-Workflow-Overview.md`](./AI-Workflow-Overview.md).
 
 ### Workflow Rules
 
@@ -227,9 +237,11 @@ videotracker/
 Features are managed through the AI workflow:
 
 1. **For versioned features**: Use `@plan-version` then `@activate-version`
-2. **For ad-hoc features**: Use `@new-feature` to design, then `@next-feature` to implement
+2. **For ad-hoc features**: Use `@new-feature` to design, then `@next-feature`
+   to implement
 
 All features must:
+
 - Have clear descriptions and test specifications
 - Pass all unit and E2E tests
 - Be documented in `progress.md` upon completion
@@ -243,7 +255,8 @@ All features must:
 
 ## Documentation
 
-- **[AI-Workflow-Overview.md](./AI-Workflow-Overview.md)** - Complete workflow documentation
+- **[AI-Workflow-Overview.md](./AI-Workflow-Overview.md)** - Complete workflow
+  documentation
 - **[Claude.md](./Claude.md)** - Project overview and context
 - **[progress.md](./progress.md)** - Development history
 - **[features.json](./features.json)** - Feature registry
@@ -259,6 +272,7 @@ This project uses a strict AI-driven workflow. Before contributing:
 4. Follow the command-based workflow
 
 All contributions must:
+
 - Follow the feature-by-feature workflow
 - Include passing tests
 - Update relevant documentation
@@ -270,7 +284,8 @@ All contributions must:
 
 ## Acknowledgments
 
-Built on [The Epic Stack](https://www.epicweb.dev/epic-stack) by [Kent C. Dodds](https://kentcdodds.com).
+Built on [The Epic Stack](https://www.epicweb.dev/epic-stack) by
+[Kent C. Dodds](https://kentcdodds.com).
 
 ---
 

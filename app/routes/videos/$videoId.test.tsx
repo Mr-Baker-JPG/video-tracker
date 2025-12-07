@@ -317,13 +317,15 @@ test('Scale calibration calculates pixels-to-meters ratio', async () => {
 	// Test with different distance
 	const scale2 = await prisma.videoScale.create({
 		data: {
-			videoId: (await prisma.video.create({
-				data: {
-					filename: 'test-video-2.mp4',
-					url: 'users/test/videos/test-key-2.mp4',
-					userId: user.id,
-				},
-			})).id,
+			videoId: (
+				await prisma.video.create({
+					data: {
+						filename: 'test-video-2.mp4',
+						url: 'users/test/videos/test-key-2.mp4',
+						userId: user.id,
+					},
+				})
+			).id,
 			startX: 0,
 			startY: 0,
 			endX: 200,
