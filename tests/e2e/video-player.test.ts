@@ -587,3 +587,109 @@ test('User can draw a scale line and input distance', async ({
 		timeout: 2000,
 	})
 })
+
+test('User can export tracking data and download CSV file', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	// First, upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Create tracking points directly in database for more reliable testing
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 100.5,
+				y: 200.75,
+				trackingObjectId: 'obj_test_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 150.25,
+				y: 250.5,
+				trackingObjectId: 'obj_test_1',
+			},
+		],
+	})
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(
+		page.getByRole('heading', { name: videoFileName }),
+	).toBeVisible()
+
+	// Wait for export button to be visible (indicates tracking points are loaded)
+	const exportButton = page.getByRole('button', { name: /export csv/i })
+	await expect(exportButton).toBeVisible()
+	await expect(exportButton).not.toBeDisabled()
+
+	// Set up download listener before clicking export
+	const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
+
+	// Click the export button
+	await exportButton.click()
+
+	// Wait for download to start
+	const download = await downloadPromise
+
+	// Verify download filename (should contain tracking_data.csv)
+	const filename = download.suggestedFilename()
+	expect(filename).toContain('tracking_data.csv')
+
+	// Read the downloaded file content
+	const path = await download.path()
+	if (!path) throw new Error('Download path not available')
+
+	const fs = await import('fs/promises')
+	const fileContent = await fs.readFile(path, 'utf-8')
+
+	// Verify CSV content
+	expect(fileContent).toContain('trackingObjectId')
+	expect(fileContent).toContain('frame')
+	expect(fileContent).toContain('time (seconds)')
+	expect(fileContent).toContain('x (pixels)')
+	expect(fileContent).toContain('y (pixels)')
+
+	// Verify there are data rows
+	const lines = fileContent.split('\n').filter((line) => line.trim())
+	expect(lines.length).toBeGreaterThan(1) // Header + data rows
+
+	// Verify specific data points
+	expect(fileContent).toContain('obj_test_1,0,0.000000,100.50,200.75')
+	expect(fileContent).toContain('obj_test_1,30,1.000000,150.25,250.50')
+})

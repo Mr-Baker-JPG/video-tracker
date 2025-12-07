@@ -8,6 +8,8 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getVideoSrc } from '#app/utils/misc.tsx'
 import { type Route } from './+types/$videoId.ts'
 
+const FPS = 30 // Frames per second for time calculation
+
 const CreateTrackingPointSchema = z.object({
 	intent: z.literal('create-tracking-point'),
 	videoId: z.string(),
@@ -25,6 +27,11 @@ const SaveScaleSchema = z.object({
 	endX: z.coerce.number().min(0),
 	endY: z.coerce.number().min(0),
 	distanceMeters: z.coerce.number().positive(),
+})
+
+const ExportTrackingDataSchema = z.object({
+	intent: z.literal('export-tracking-data'),
+	videoId: z.string(),
 })
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -79,11 +86,115 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 	return { video, videoSrc, trackingPoints, scale }
 }
 
+export function generateTrackingDataCSV(
+	trackingPoints: Array<{
+		frame: number
+		x: number
+		y: number
+		trackingObjectId: string
+	}>,
+	scale: { pixelsPerMeter: number } | null,
+): string {
+	// CSV header
+	const hasScale = scale !== null
+	const headers = [
+		'trackingObjectId',
+		'frame',
+		'time (seconds)',
+		'x (pixels)',
+		'y (pixels)',
+	]
+	if (hasScale) {
+		headers.push('x (meters)', 'y (meters)')
+	}
+
+	// Generate CSV rows
+	const rows = trackingPoints.map((point) => {
+		const time = point.frame / FPS
+		const row = [
+			point.trackingObjectId,
+			point.frame.toString(),
+			time.toFixed(6),
+			point.x.toFixed(2),
+			point.y.toFixed(2),
+		]
+		if (hasScale && scale) {
+			const xMeters = point.x / scale.pixelsPerMeter
+			const yMeters = point.y / scale.pixelsPerMeter
+			row.push(xMeters.toFixed(6), yMeters.toFixed(6))
+		}
+		return row.join(',')
+	})
+
+	// Combine header and rows
+	return [headers.join(','), ...rows].join('\n')
+}
+
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 
 	const intent = formData.get('intent')
+
+	if (intent === 'export-tracking-data') {
+		const submission = parseWithZod(formData, {
+			schema: ExportTrackingDataSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId } = submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true, filename: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to export tracking data for this video',
+			{ status: 403 },
+		)
+
+		// Fetch tracking points
+		const trackingPoints = await prisma.trackingPoint.findMany({
+			where: { videoId: video.id },
+			select: {
+				frame: true,
+				x: true,
+				y: true,
+				trackingObjectId: true,
+			},
+			orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
+		})
+
+		// Fetch scale if it exists
+		const scale = await prisma.videoScale.findUnique({
+			where: { videoId: video.id },
+			select: {
+				pixelsPerMeter: true,
+			},
+		})
+
+		// Generate CSV
+		const csv = generateTrackingDataCSV(trackingPoints, scale)
+
+		// Return CSV as response with appropriate headers
+		const filename = `${video.filename.replace(/\.[^/.]+$/, '')}_tracking_data.csv`
+		return new Response(csv, {
+			headers: {
+				'Content-Type': 'text/csv',
+				'Content-Disposition': `attachment; filename="${filename}"`,
+			},
+		})
+	}
 
 	if (intent === 'save-scale') {
 		const submission = parseWithZod(formData, {

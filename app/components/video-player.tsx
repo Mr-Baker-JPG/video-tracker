@@ -908,6 +908,80 @@ export function VideoPlayer({
 				</div>
 			</div>
 
+			{/* Export Tracking Data */}
+			{videoId && (
+				<div className="mt-4 rounded-lg border p-4">
+					<div className="mb-3 flex items-center justify-between">
+						<h3 className="text-sm font-semibold">Export Tracking Data</h3>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={localTrackingPoints.length === 0}
+							onClick={async () => {
+								if (!videoId) return
+								const formData = new FormData()
+								formData.append('intent', 'export-tracking-data')
+								formData.append('videoId', videoId)
+
+								try {
+									const response = await fetch(`/videos/${videoId}`, {
+										method: 'POST',
+										body: formData,
+									})
+
+									if (!response.ok) {
+										throw new Error('Export failed')
+									}
+
+									// Get filename from Content-Disposition header
+									const contentDisposition = response.headers.get(
+										'Content-Disposition',
+									)
+									let filename = 'tracking_data.csv'
+									if (contentDisposition) {
+										const filenameMatch =
+											contentDisposition.match(/filename="(.+)"/)
+										if (filenameMatch) {
+											filename = filenameMatch[1]
+										}
+									}
+
+									// Create blob and download
+									const blob = await response.blob()
+									const url = window.URL.createObjectURL(blob)
+									const a = document.createElement('a')
+									a.href = url
+									a.download = filename
+									document.body.appendChild(a)
+									a.click()
+									document.body.removeChild(a)
+									window.URL.revokeObjectURL(url)
+								} catch (error) {
+									console.error('Export error:', error)
+								}
+							}}
+						>
+							<Icon name="download" className="mr-2" />
+							Export CSV
+						</Button>
+					</div>
+					{localTrackingPoints.length === 0 && (
+						<p className="text-muted-foreground text-sm">
+							No tracking points to export. Place tracking points on the video
+							first.
+						</p>
+					)}
+					{localTrackingPoints.length > 0 && (
+						<p className="text-muted-foreground text-sm">
+							Export {localTrackingPoints.length} tracking point
+							{localTrackingPoints.length !== 1 ? 's' : ''} as CSV
+							{scale ? ' (includes meter conversions)' : ''}.
+						</p>
+					)}
+				</div>
+			)}
+
 			{/* Scale Calibration UI */}
 			{videoId && (
 				<div className="mt-4 rounded-lg border p-4">

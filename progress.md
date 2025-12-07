@@ -416,3 +416,45 @@ implementation and testing of each feature as defined in `features.json`.
   distance input
 - Scale data is stored per video and can be used for future features like
   converting tracking point coordinates to real-world distances
+
+---
+
+### F009: Tracking Data Export
+
+**Date:** 2025-12-06
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Added export action to video route (`/videos/$videoId`) that generates CSV from
+  tracking points
+- Created `generateTrackingDataCSV` function that:
+  - Formats tracking points with columns: trackingObjectId, frame, time
+    (seconds), x (pixels), y (pixels)
+  - Includes meter conversions (x meters, y meters) when scale is set
+  - Calculates time from frame number using 30fps assumption
+  - Orders data by trackingObjectId and frame
+- Added export button to video player component with:
+  - Download icon and "Export CSV" label
+  - Disabled state when no tracking points exist
+  - Client-side fetch API to download CSV file
+  - Automatic filename extraction from Content-Disposition header
+- Export button uses fetch API to download CSV as blob, triggering browser
+  download
+
+**Testing:**
+
+- ✅ Unit test: Export function generates correct CSV format (passing)
+- ✅ Unit test: CSV includes all required columns (passing)
+- ✅ Unit test: CSV includes meter conversions when scale is set (passing)
+- ✅ E2E test: User can export tracking data and download CSV file (passing)
+
+**Notes:**
+
+- CSV format includes trackingObjectId column to support multiple object tracking
+- Time is calculated as frame / 30 (assuming 30fps)
+- Meter conversions are only included when scale calibration is set
+- Export button is disabled when no tracking points exist
+- Filename is generated from video filename with `_tracking_data.csv` suffix
+- All unit and E2E tests pass successfully

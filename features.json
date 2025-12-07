@@ -117,8 +117,8 @@
 				"E2E test: User can export tracking data and download CSV file",
 				"Manual: Verify CSV opens correctly in spreadsheet application"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F010",
