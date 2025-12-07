@@ -561,3 +561,58 @@ implementation and testing of each feature as defined in `features.json`.
   to m/s when scale calibration is set
 - All unit tests pass successfully; E2E test verifies graph display and toggle
   functionality
+
+---
+
+### F011b: Video Player Controls and Seek Bar UX Improvements
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented
+
+**Implementation:**
+
+- **Frame Counting Fix:**
+  - Fixed duplicate frame display issue (was showing "1, 1, 2, 3, 4...")
+  - Removed `currentFrame` state variable and calculate frame directly from
+    `currentTime` in render: `Math.floor(currentTime * 30) + 1`
+  - Eliminated duplicate state updates that caused frame to display twice
+  - Frame now correctly displays as "1, 2, 3, 4, 5..." without duplicates
+
+- **Seek Bar Dragging Improvements:**
+  - Fixed seek bar not being draggable by adding `pointer-events-none` to visual
+    indicator circle
+  - Added `z-10` to input range slider to ensure it receives mouse/touch events
+  - Eliminated seek bar delay by implementing real-time `seekTime` state during
+    dragging
+  - Added `isSeeking` state to track when user is actively dragging
+  - Disabled CSS transitions during dragging for instant visual feedback
+  - Progress bar and indicator circle now update immediately as user drags
+
+- **Control Layout Changes:**
+  - Reorganized video controls layout using 3-column grid
+  - Centered video controls (play, pause, frame navigation buttons)
+  - Positioned frame display on the right side of controls
+  - Improved visual hierarchy and spacing
+
+**Testing:**
+
+- ✅ Manual: Frame counter displays correctly without duplicates (verified)
+- ✅ Manual: Seek bar is draggable and responds smoothly (verified)
+- ✅ Manual: Visual indicators update instantly during dragging (verified)
+- ✅ Manual: Control layout is centered with frame display on right (verified)
+
+**Notes:**
+
+- Frame calculation moved from state to computed value to eliminate duplicate
+  renders
+- Seek bar improvements provide smooth, responsive dragging experience
+- Control layout provides better visual balance and user experience
+- All changes maintain backward compatibility with existing functionality
+
+**Testing Updates:**
+
+- ✅ Fixed video player test: Updated time display test to match new layout (spans with `font-mono text-[10px] text-slate-600` classes)
+- ✅ Fixed position graph tests: Updated to use Tabs component instead of buttons, removed checks for commented-out title
+- ✅ Fixed velocity graph tests: Updated to use Tabs component instead of buttons, removed checks for commented-out title
+- ✅ All component tests now passing (18/18 tests)

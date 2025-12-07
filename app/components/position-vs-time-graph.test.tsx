@@ -21,15 +21,12 @@ test('Graph component receives and displays tracking data', () => {
 
 	render(<PositionVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
-	// Check that the graph title is displayed
-	expect(screen.getByText('Position vs Time')).toBeInTheDocument()
-
-	// Check that axis toggle buttons are present
-	expect(screen.getByRole('button', { name: /x axis/i })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /y axis/i })).toBeInTheDocument()
+	// Check that axis toggle tabs are present (using Tabs component)
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 
 	// Check that the graph container is rendered (ResponsiveContainer creates a div)
-	const graphContainer = screen.getByText('Position vs Time').closest('div')
+	const graphContainer = screen.getByRole('tab', { name: /x axis/i }).closest('.space-y-4')
 	expect(graphContainer).toBeInTheDocument()
 })
 
@@ -53,26 +50,26 @@ test('X/Y toggle switches graph axes correctly', async () => {
 	render(<PositionVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
 	// Initially X axis should be selected (default)
-	const xButton = screen.getByRole('button', { name: /x axis/i })
-	const yButton = screen.getByRole('button', { name: /y axis/i })
+	const xTab = screen.getByRole('tab', { name: /x axis/i })
+	const yTab = screen.getByRole('tab', { name: /y axis/i })
 
-	// Check initial state - X button should have default variant (selected)
-	expect(xButton).toHaveClass('bg-primary') // default variant has bg-primary
-	expect(yButton).toHaveClass('border-input') // outline variant has border-input
+	// Check initial state - X tab should be selected (data-state="active")
+	expect(xTab).toHaveAttribute('data-state', 'active')
+	expect(yTab).toHaveAttribute('data-state', 'inactive')
 
-	// Click Y axis button
-	await user.click(yButton)
+	// Click Y axis tab
+	await user.click(yTab)
 
-	// After clicking Y, Y button should be selected and X should be outline
-	expect(yButton).toHaveClass('bg-primary')
-	expect(xButton).toHaveClass('border-input')
+	// After clicking Y, Y tab should be selected and X should be inactive
+	expect(yTab).toHaveAttribute('data-state', 'active')
+	expect(xTab).toHaveAttribute('data-state', 'inactive')
 
-	// Click X axis button again
-	await user.click(xButton)
+	// Click X axis tab again
+	await user.click(xTab)
 
 	// X should be selected again
-	expect(xButton).toHaveClass('bg-primary')
-	expect(yButton).toHaveClass('border-input')
+	expect(xTab).toHaveAttribute('data-state', 'active')
+	expect(yTab).toHaveAttribute('data-state', 'inactive')
 })
 
 test('Graph displays correct Y-axis label for X position', () => {
@@ -83,9 +80,10 @@ test('Graph displays correct Y-axis label for X position', () => {
 	render(<PositionVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
 	// When X axis is selected and no scale, should show "Position X (pixels)"
-	// The YAxis component from Recharts will render this, but we can check the button state
-	expect(screen.getByRole('button', { name: /x axis/i })).toHaveClass(
-		'bg-primary',
+	// The YAxis component from Recharts will render this, but we can check the tab state
+	expect(screen.getByRole('tab', { name: /x axis/i })).toHaveAttribute(
+		'data-state',
+		'active',
 	)
 })
 
@@ -99,7 +97,9 @@ test('Graph displays meter units when scale is provided', () => {
 
 	// Graph should render with scale data
 	// The component should handle scale conversion internally
-	expect(screen.getByText('Position vs Time')).toBeInTheDocument()
+	// Check that tabs are present (graph is rendered)
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 })
 
 test('Graph handles multiple tracking objects', () => {
@@ -113,7 +113,6 @@ test('Graph handles multiple tracking objects', () => {
 	render(<PositionVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
 	// Graph should render with multiple objects
-	expect(screen.getByText('Position vs Time')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /x axis/i })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /y axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 })

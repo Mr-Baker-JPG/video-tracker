@@ -211,11 +211,16 @@ test('Time display includes milliseconds', () => {
 	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
 
 	// Time display should show format with milliseconds (MM:SS.mmm)
-	// The time is split across multiple spans, so check the parent container
-	const timeDisplayContainer = container.querySelector(
-		'.text-muted-foreground.text-sm',
+	// The time is displayed in spans with class "font-mono text-[10px] text-slate-600"
+	// There are two spans: one for current time and one for duration
+	const timeSpans = container.querySelectorAll(
+		'span.font-mono.text-\\[10px\\].text-slate-600',
 	)
-	expect(timeDisplayContainer).toBeInTheDocument()
-	expect(timeDisplayContainer?.textContent).toMatch(/\d+:\d+\.\d{3}/)
-	expect(timeDisplayContainer?.textContent).toContain('/')
+	expect(timeSpans.length).toBeGreaterThan(0)
+	
+	// Check that at least one time span contains the millisecond format
+	const timeText = Array.from(timeSpans)
+		.map((span) => span.textContent)
+		.join(' ')
+	expect(timeText).toMatch(/\d+:\d+\.\d{3}/)
 })

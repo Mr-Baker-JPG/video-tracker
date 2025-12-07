@@ -21,15 +21,12 @@ test('Graph component receives and displays tracking data', () => {
 
 	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
-	// Check that the graph title is displayed
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
-
-	// Check that axis toggle buttons are present
-	expect(screen.getByRole('button', { name: /x axis/i })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /y axis/i })).toBeInTheDocument()
+	// Check that axis toggle tabs are present (using Tabs component)
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 
 	// Check that the graph container is rendered (ResponsiveContainer creates a div)
-	const graphContainer = screen.getByText('Velocity vs Time').closest('div')
+	const graphContainer = screen.getByRole('tab', { name: /x axis/i }).closest('.space-y-4')
 	expect(graphContainer).toBeInTheDocument()
 })
 
@@ -53,26 +50,26 @@ test('X/Y toggle switches graph axes correctly', async () => {
 	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
 	// Initially X axis should be selected (default)
-	const xButton = screen.getByRole('button', { name: /x axis/i })
-	const yButton = screen.getByRole('button', { name: /y axis/i })
+	const xTab = screen.getByRole('tab', { name: /x axis/i })
+	const yTab = screen.getByRole('tab', { name: /y axis/i })
 
-	// Check initial state - X button should have default variant (selected)
-	expect(xButton).toHaveClass('bg-primary') // default variant has bg-primary
-	expect(yButton).toHaveClass('border-input') // outline variant has border-input
+	// Check initial state - X tab should be selected (data-state="active")
+	expect(xTab).toHaveAttribute('data-state', 'active')
+	expect(yTab).toHaveAttribute('data-state', 'inactive')
 
-	// Click Y axis button
-	await user.click(yButton)
+	// Click Y axis tab
+	await user.click(yTab)
 
-	// After clicking Y, Y button should be selected and X should be outline
-	expect(yButton).toHaveClass('bg-primary')
-	expect(xButton).toHaveClass('border-input')
+	// After clicking Y, Y tab should be selected and X should be inactive
+	expect(yTab).toHaveAttribute('data-state', 'active')
+	expect(xTab).toHaveAttribute('data-state', 'inactive')
 
-	// Click X axis button again
-	await user.click(xButton)
+	// Click X axis tab again
+	await user.click(xTab)
 
 	// X should be selected again
-	expect(xButton).toHaveClass('bg-primary')
-	expect(yButton).toHaveClass('border-input')
+	expect(xTab).toHaveAttribute('data-state', 'active')
+	expect(yTab).toHaveAttribute('data-state', 'inactive')
 })
 
 test('Velocity calculation is correct for sample data', () => {
@@ -85,8 +82,9 @@ test('Velocity calculation is correct for sample data', () => {
 
 	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
-	// Graph should render
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
+	// Graph should render - check that tabs are present
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 	// The velocity calculation happens internally, we verify the component renders correctly
 })
 
@@ -97,7 +95,7 @@ test('Velocity handles edge cases (first/last frames)', () => {
 	const { unmount: unmount1 } = render(
 		<VelocityVsTimeGraph trackingPoints={singlePoint} scale={null} />,
 	)
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount1()
 
 	// Test with two points (first uses forward diff, last uses backward diff)
@@ -109,7 +107,7 @@ test('Velocity handles edge cases (first/last frames)', () => {
 	const { unmount: unmount2 } = render(
 		<VelocityVsTimeGraph trackingPoints={twoPoints} scale={null} />,
 	)
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount2()
 
 	// Test with multiple points
@@ -120,7 +118,7 @@ test('Velocity handles edge cases (first/last frames)', () => {
 	]
 
 	render(<VelocityVsTimeGraph trackingPoints={multiplePoints} scale={null} />)
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 })
 
 test('Velocity converts to m/s when scale is available', () => {
@@ -134,7 +132,9 @@ test('Velocity converts to m/s when scale is available', () => {
 
 	// Graph should render with scale data
 	// The component should handle scale conversion internally
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
+	// Check that tabs are present (graph is rendered)
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 })
 
 test('Graph handles multiple tracking objects', () => {
@@ -148,7 +148,6 @@ test('Graph handles multiple tracking objects', () => {
 	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
 
 	// Graph should render with multiple objects
-	expect(screen.getByText('Velocity vs Time')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /x axis/i })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /y axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 })
