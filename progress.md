@@ -545,7 +545,8 @@ implementation and testing of each feature as defined in `features.json`.
 - ✅ Unit test: Velocity converts to m/s when scale is available (passing)
 - ✅ Unit test: Graph component receives and displays tracking data (passing)
 - ✅ Unit test: X/Y toggle switches graph axes correctly (passing)
-- ✅ Unit test: Graph component shows empty state when no tracking data (passing)
+- ✅ Unit test: Graph component shows empty state when no tracking data
+  (passing)
 - ✅ Unit test: Graph handles multiple tracking objects (passing)
 - ✅ E2E test: User can view velocity vs time graph (passing)
 

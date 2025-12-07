@@ -1,9 +1,8 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { useFetcher } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
-import { Label } from '#app/components/ui/label.tsx'
 
 interface TrackingPoint {
 	id: string
@@ -29,6 +28,8 @@ interface VideoPlayerProps {
 	videoId?: string
 	trackingPoints?: TrackingPoint[]
 	scale?: Scale | null
+	onScaleCalibrationModeChange?: (isActive: boolean) => void
+	isScaleCalibrationModeExternal?: boolean
 }
 
 function formatTime(seconds: number): string {
@@ -45,11 +46,14 @@ export function VideoPlayer({
 	videoId,
 	trackingPoints = [],
 	scale: initialScale = null,
+	onScaleCalibrationModeChange,
+	isScaleCalibrationModeExternal = false,
 }: VideoPlayerProps) {
 	const videoRef = useRef<HTMLVideoElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const isSeekingRef = useRef(false)
+	const seekTimeRef = useRef<number | null>(null)
 	// useFetcher must be called unconditionally (React hook rule)
 	// We'll only use it when videoId is provided
 	const fetcher = useFetcher()
@@ -57,7 +61,8 @@ export function VideoPlayer({
 	const [isEnded, setIsEnded] = useState(false)
 	const [currentTime, setCurrentTime] = useState(0)
 	const [duration, setDuration] = useState(0)
-	const [currentFrame, setCurrentFrame] = useState(0)
+	const [isSeeking, setIsSeeking] = useState(false)
+	const [seekTime, setSeekTime] = useState<number | null>(null)
 	const [localTrackingPoints, setLocalTrackingPoints] =
 		useState<TrackingPoint[]>(trackingPoints)
 	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
@@ -65,6 +70,18 @@ export function VideoPlayer({
 	>(null)
 	// Scale calibration state
 	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
+
+	// Sync external scale calibration mode
+	useEffect(() => {
+		if (isScaleCalibrationModeExternal !== undefined) {
+			setIsScaleCalibrationMode(isScaleCalibrationModeExternal)
+		}
+	}, [isScaleCalibrationModeExternal])
+
+	// Notify parent of scale calibration mode changes
+	useEffect(() => {
+		onScaleCalibrationModeChange?.(isScaleCalibrationMode)
+	}, [isScaleCalibrationMode, onScaleCalibrationModeChange])
 	const [scaleStartPoint, setScaleStartPoint] = useState<{
 		x: number
 		y: number
@@ -119,9 +136,6 @@ export function VideoPlayer({
 			if (isEnded && newTime < video.duration) {
 				setIsEnded(false)
 			}
-			// Calculate current frame (assuming 30 fps, can be adjusted)
-			const fps = 30
-			setCurrentFrame(Math.floor(newTime * fps))
 		},
 		[isEnded],
 	)
@@ -130,20 +144,25 @@ export function VideoPlayer({
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			// Update UI immediately while dragging for smooth experience
 			const newTime = parseFloat(e.target.value)
+			seekTimeRef.current = newTime
+			setSeekTime(newTime)
 			setCurrentTime(newTime)
-			// Calculate current frame (assuming 30 fps, can be adjusted)
-			const fps = 30
-			setCurrentFrame(Math.floor(newTime * fps))
 		},
 		[],
 	)
 
 	const handleSeekStart = useCallback(() => {
 		isSeekingRef.current = true
-	}, [])
+		setIsSeeking(true)
+		seekTimeRef.current = currentTime
+		setSeekTime(currentTime)
+	}, [currentTime])
 
 	const handleSeekEnd = useCallback(() => {
 		isSeekingRef.current = false
+		setIsSeeking(false)
+		seekTimeRef.current = null
+		setSeekTime(null)
 	}, [])
 
 	const handleTimeUpdate = useCallback(() => {
@@ -152,9 +171,6 @@ export function VideoPlayer({
 		const video = videoRef.current
 		if (!video) return
 		setCurrentTime(video.currentTime)
-		// Calculate current frame (assuming 30 fps, can be adjusted)
-		const fps = 30
-		setCurrentFrame(Math.floor(video.currentTime * fps))
 	}, [])
 
 	const handleLoadedMetadata = useCallback(() => {
@@ -167,8 +183,7 @@ export function VideoPlayer({
 		if (isFinite(duration) && duration > 0) {
 			setDuration(duration)
 		}
-		const fps = 30
-		setCurrentFrame(Math.floor(video.currentTime * fps))
+		// Don't set frame here - let handleTimeUpdate handle it to avoid duplicates
 	}, [])
 
 	const handleCanPlay = useCallback(() => {
@@ -234,9 +249,6 @@ export function VideoPlayer({
 		const newTime = Math.max(0, video.currentTime - seekAmount)
 		video.currentTime = newTime
 		setCurrentTime(newTime)
-		// Calculate current frame (assuming 30 fps, can be adjusted)
-		const fps = 30
-		setCurrentFrame(Math.floor(newTime * fps))
 		setIsPlaying(false)
 		video.pause()
 	}, [])
@@ -248,9 +260,6 @@ export function VideoPlayer({
 		const newTime = Math.min(video.duration, video.currentTime + seekAmount)
 		video.currentTime = newTime
 		setCurrentTime(newTime)
-		// Calculate current frame (assuming 30 fps, can be adjusted)
-		const fps = 30
-		setCurrentFrame(Math.floor(newTime * fps))
 		setIsPlaying(false)
 		video.pause()
 	}, [])
@@ -485,21 +494,21 @@ export function VideoPlayer({
 			void fetcher.submit(formData, {
 				method: 'POST',
 			})
-			// Immediately exit scale calibration mode so user can place tracking points
-			// The useEffect will update the scale when the response comes back
-			setIsScaleCalibrationMode(false)
+			// Reset scale calibration state
 			setScaleStartPoint(null)
 			setScaleEndPoint(null)
 			setDistanceMeters('')
+			// Exit scale calibration mode - will be synced with external state
+			setIsScaleCalibrationMode(false)
 		}
 	}, [videoId, scaleStartPoint, scaleEndPoint, distanceMeters, fetcher])
 
 	// Reset scale calibration mode
 	const handleCancelScale = useCallback(() => {
-		setIsScaleCalibrationMode(false)
 		setScaleStartPoint(null)
 		setScaleEndPoint(null)
 		setDistanceMeters('')
+		setIsScaleCalibrationMode(false)
 	}, [])
 
 	// Update scale when fetcher returns new data
@@ -509,13 +518,15 @@ export function VideoPlayer({
 			if (fetcher.data?.scale) {
 				const newScale = fetcher.data.scale as Scale
 				setScale(newScale)
-				setIsScaleCalibrationMode(false)
+				// Reset scale calibration state
 				setScaleStartPoint(null)
 				setScaleEndPoint(null)
 				setDistanceMeters('')
+				// Exit scale calibration mode - will sync with external state
+				setIsScaleCalibrationMode(false)
 			}
 		}
-	}, [fetcher?.data])
+	}, [fetcher?.data, onScaleCalibrationModeChange])
 
 	// Draw tracking points on canvas
 	useEffect(() => {
@@ -764,7 +775,7 @@ export function VideoPlayer({
 				<video
 					ref={videoRef}
 					src={src}
-					className="w-full rounded-lg"
+					className="w-full"
 					preload="metadata"
 					onTimeUpdate={handleTimeUpdate}
 					onLoadedMetadata={handleLoadedMetadata}
@@ -779,7 +790,7 @@ export function VideoPlayer({
 				{videoId && (
 					<canvas
 						ref={canvasRef}
-						className="absolute top-0 left-0 cursor-crosshair rounded-lg"
+						className="absolute top-0 left-0 cursor-crosshair"
 						onClick={handleCanvasClick}
 						style={{ pointerEvents: 'auto' }}
 						aria-label={
@@ -789,244 +800,291 @@ export function VideoPlayer({
 						}
 					/>
 				)}
+
+				{/* Scale Input Overlay - shown when both points are set */}
+				{isScaleCalibrationMode && scaleStartPoint && scaleEndPoint && (
+					<ScaleInputOverlay
+						startPoint={scaleStartPoint}
+						endPoint={scaleEndPoint}
+						containerRef={
+							containerRef as React.RefObject<HTMLDivElement | null>
+						}
+						canvasRef={canvasRef as React.RefObject<HTMLCanvasElement | null>}
+						value={distanceMeters}
+						onChange={setDistanceMeters}
+						onSave={handleSaveScale}
+						onCancel={handleCancelScale}
+					/>
+				)}
 			</div>
 
-			<div className="mt-4 space-y-2">
+			{/* Controls Below Video */}
+			<div className="mt-4 space-y-2 px-4 pb-4">
 				{/* Seek bar */}
-				<input
-					type="range"
-					min="0"
-					max={duration || 0}
-					value={currentTime}
-					onChange={handleSeek}
-					onInput={handleSeekInput}
-					onMouseDown={handleSeekStart}
-					onMouseUp={handleSeekEnd}
-					onTouchStart={handleSeekStart}
-					onTouchEnd={handleSeekEnd}
-					step="0.001"
-					className="w-full"
-					aria-label="Video seek"
-				/>
+				<div className="group/scrubber mb-3 flex items-center gap-3">
+					<span className="w-12 text-right font-mono text-[10px] text-slate-600">
+						{formatTime(currentTime)}
+					</span>
+					<div className="relative flex flex-1 cursor-pointer items-center">
+						<div className="absolute h-1 w-full rounded-full bg-slate-200 transition-all group-hover/scrubber:h-1.5" />
+						<div
+							className="bg-primary absolute h-1 rounded-full transition-all group-hover/scrubber:h-1.5"
+							style={{
+								width: `${
+									duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
+								}%`,
+								transition: isSeeking ? 'none' : undefined,
+							}}
+						/>
+						<input
+							type="range"
+							min="0"
+							max={duration || 0}
+							value={seekTime ?? currentTime}
+							onChange={handleSeek}
+							onInput={handleSeekInput}
+							onMouseDown={handleSeekStart}
+							onMouseUp={handleSeekEnd}
+							onTouchStart={handleSeekStart}
+							onTouchEnd={handleSeekEnd}
+							step="0.001"
+							className="absolute z-10 h-3 w-full cursor-pointer appearance-none bg-transparent opacity-0"
+							aria-label="Video seek"
+						/>
+						<div
+							className="border-primary pointer-events-none absolute h-3 w-3 rounded-full border-2 bg-white shadow transition-transform hover:scale-125"
+							style={{
+								left: `${
+									duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
+								}%`,
+								transform: 'translateX(-50%)',
+								transition: isSeeking ? 'none' : undefined,
+							}}
+						/>
+					</div>
+					<span className="w-12 font-mono text-[10px] text-slate-600">
+						{formatTime(duration)}
+					</span>
+				</div>
 
 				{/* Controls */}
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						{/* Navigation buttons: [double left] [left] [play] [right] [double right] */}
-						<div
-							className="flex items-center gap-1"
-							role="group"
-							aria-label="Video navigation controls"
+				<div className="grid grid-cols-3 items-center gap-4">
+					{/* Left spacer */}
+					<div />
+					{/* Centered controls */}
+					<div className="flex items-center justify-center gap-1">
+						{/* Double left: 3 seconds backward */}
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onClick={seekBackward}
+							aria-label="Seek backward 3 seconds"
+							title="Seek backward 3 seconds"
+							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
 						>
-							{/* Double left: 3 seconds backward */}
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								onClick={seekBackward}
-								aria-label="Seek backward 3 seconds"
-								title="Seek backward 3 seconds"
-							>
-								<Icon name="double-arrow-left" />
-							</Button>
-
-							{/* Single left: Previous frame */}
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								onClick={goToPreviousFrame}
-								aria-label="Previous frame"
-								title="Previous frame"
-							>
-								<Icon name="chevron-left" />
-							</Button>
-
-							{/* Play/Pause/Restart button in the middle */}
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								onClick={handlePlayPause}
-								aria-label={
-									currentTime >= duration && duration > 0
-										? 'Restart'
-										: isPlaying
-											? 'Pause'
-											: 'Play'
-								}
-								title={
-									currentTime >= duration && duration > 0
-										? 'Restart'
-										: isPlaying
-											? 'Pause'
-											: 'Play'
-								}
-							>
-								{currentTime >= duration && duration > 0 ? (
-									<Icon name="reload" />
-								) : isPlaying ? (
-									<Icon name="pause" />
-								) : (
-									<Icon name="play" />
-								)}
-							</Button>
-
-							{/* Single right: Next frame */}
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								onClick={goToNextFrame}
-								aria-label="Next frame"
-								title="Next frame"
-							>
-								<Icon name="chevron-right" />
-							</Button>
-
-							{/* Double right: 3 seconds forward */}
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								onClick={seekForward}
-								aria-label="Seek forward 3 seconds"
-								title="Seek forward 3 seconds"
-							>
-								<Icon name="double-arrow-right" />
-							</Button>
-						</div>
+							<Icon name="double-arrow-left" className="h-6 w-6" />
+						</Button>
+						{/* Single left: Previous frame */}
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onClick={goToPreviousFrame}
+							aria-label="Previous frame"
+							title="Previous frame"
+							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+						>
+							<Icon name="chevron-left" className="h-6 w-6" />
+						</Button>
+						{/* Play/Pause/Restart button */}
+						<Button
+							type="button"
+							variant="default"
+							size="icon"
+							className="cursor-pointer rounded-full bg-white hover:bg-white/80"
+							onClick={handlePlayPause}
+							aria-label={
+								currentTime >= duration && duration > 0
+									? 'Restart'
+									: isPlaying
+										? 'Pause'
+										: 'Play'
+							}
+							title={
+								currentTime >= duration && duration > 0
+									? 'Restart'
+									: isPlaying
+										? 'Pause'
+										: 'Play'
+							}
+						>
+							{currentTime >= duration && duration > 0 ? (
+								<Icon name="reload" />
+							) : isPlaying ? (
+								<Icon name="pause" />
+							) : (
+								<Icon name="play" className="fill-current text-black" />
+							)}
+						</Button>
+						{/* Single right: Next frame */}
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onClick={goToNextFrame}
+							aria-label="Next frame"
+							title="Next frame"
+							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+						>
+							<Icon name="chevron-right" className="h-6 w-6" />
+						</Button>
+						{/* Double right: 3 seconds forward */}
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onClick={seekForward}
+							aria-label="Seek forward 3 seconds"
+							title="Seek forward 3 seconds"
+							className="cursor-pointer rounded-full text-white hover:bg-transparent hover:text-white/80"
+						>
+							<Icon name="double-arrow-right" className="h-6 w-6" />
+						</Button>
 					</div>
-
-					{/* Time display */}
-					<div className="text-muted-foreground text-sm">
-						<span>{formatTime(currentTime)}</span>
-						<span className="mx-1">/</span>
-						<span>{formatTime(duration)}</span>
-						<span className="ml-2 text-xs">(Frame: {currentFrame})</span>
+					{/* Frame display on the right */}
+					<div className="flex items-center justify-end gap-2 pl-4">
+						<div className="flex flex-col items-center">
+							<span className="text-[9px] font-bold tracking-wider text-slate-500 uppercase">
+								Frame
+							</span>
+							<div className="flex items-baseline gap-1 font-mono text-xs text-slate-900">
+								<span className="font-bold text-white">
+									{Math.ceil(currentTime * 30) + 1}
+								</span>
+								<span className="text-slate-500">
+									/ {duration ? Math.ceil(duration * 30) + 1 : 0}
+								</span>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
+		</div>
+	)
+}
 
-			{/* Export Tracking Data */}
-			{videoId && (
-				<div className="mt-4 rounded-lg border p-4">
-					<div className="mb-3 flex items-center justify-between">
-						<h3 className="text-sm font-semibold">Export Tracking Data</h3>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							disabled={localTrackingPoints.length === 0}
-							onClick={() => {
-								if (!videoId) return
-								// Use resource route for direct CSV download
-								const url = `/resources/export-tracking-data?videoId=${encodeURIComponent(videoId)}`
-								const a = document.createElement('a')
-								a.href = url
-								a.download = 'tracking_data.csv'
-								document.body.appendChild(a)
-								a.click()
-								document.body.removeChild(a)
-							}}
-						>
-							<Icon name="download" className="mr-2" />
-							Export CSV
-						</Button>
-					</div>
-					{localTrackingPoints.length === 0 && (
-						<p className="text-muted-foreground text-sm">
-							No tracking points to export. Place tracking points on the video
-							first.
-						</p>
-					)}
-					{localTrackingPoints.length > 0 && (
-						<p className="text-muted-foreground text-sm">
-							Export {localTrackingPoints.length} tracking point
-							{localTrackingPoints.length !== 1 ? 's' : ''} as CSV
-							{scale ? ' (includes meter conversions)' : ''}.
-						</p>
-					)}
-				</div>
-			)}
+// Scale Input Overlay Component - shows input field mid-line when both points are set
+function ScaleInputOverlay({
+	startPoint,
+	endPoint,
+	containerRef,
+	canvasRef,
+	value,
+	onChange,
+	onSave,
+	onCancel,
+}: {
+	startPoint: { x: number; y: number }
+	endPoint: { x: number; y: number }
+	containerRef: React.RefObject<HTMLDivElement | null>
+	canvasRef: React.RefObject<HTMLCanvasElement | null>
+	value: string
+	onChange: (value: string) => void
+	onSave: () => void
+	onCancel: () => void
+}) {
+	const inputRef = useRef<HTMLInputElement>(null)
+	const [position, setPosition] = useState({ x: 0, y: 0 })
 
-			{/* Scale Calibration UI */}
-			{videoId && (
-				<div className="mt-4 rounded-lg border p-4">
-					<div className="mb-3 flex items-center justify-between">
-						<h3 className="text-sm font-semibold">Scale Calibration</h3>
-						{!isScaleCalibrationMode && (
-							<Button
-								type="button"
-								variant={scale ? 'outline' : 'default'}
-								size="sm"
-								onClick={() => setIsScaleCalibrationMode(true)}
-							>
-								{scale ? 'Update Scale' : 'Set Scale'}
-							</Button>
-						)}
-					</div>
+	// Calculate position for input field (mid-point of the line)
+	useEffect(() => {
+		if (!containerRef.current || !canvasRef.current) return
 
-					{scale && !isScaleCalibrationMode && (
-						<div className="text-muted-foreground space-y-1 text-sm">
-							<div>Distance: {scale.distanceMeters} m</div>
-							<div>Ratio: {scale.pixelsPerMeter.toFixed(2)} px/m</div>
-						</div>
-					)}
+		const canvas = canvasRef.current
+		const video = containerRef.current.querySelector('video')
+		if (!video) return
 
-					{isScaleCalibrationMode && (
-						<div className="space-y-3">
-							<div className="text-muted-foreground text-sm">
-								{!scaleStartPoint
-									? 'Click on the video to set the start point of your scale line'
-									: !scaleEndPoint
-										? 'Click on the video to set the end point of your scale line'
-										: 'Enter the real-world distance in meters'}
-							</div>
+		// Use the same logic as canvas drawing
+		const videoAspect = video.videoWidth / video.videoHeight
+		const canvasAspect = canvas.width / canvas.height
 
-							{scaleStartPoint && scaleEndPoint && (
-								<div className="space-y-2">
-									<Label htmlFor="distanceMeters">Distance (meters)</Label>
-									<Input
-										id="distanceMeters"
-										type="number"
-										step="0.01"
-										min="0.01"
-										value={distanceMeters}
-										onChange={(e) => setDistanceMeters(e.target.value)}
-										placeholder="e.g., 1.0"
-									/>
-								</div>
-							)}
+		let canvasScale: number
+		let offsetX = 0
+		let offsetY = 0
 
-							<div className="flex gap-2">
-								<Button
-									type="button"
-									variant="default"
-									size="sm"
-									onClick={handleSaveScale}
-									disabled={
-										!scaleStartPoint ||
-										!scaleEndPoint ||
-										!distanceMeters ||
-										parseFloat(distanceMeters) <= 0
-									}
-								>
-									Save Scale
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={handleCancelScale}
-								>
-									Cancel
-								</Button>
-							</div>
-						</div>
-					)}
-				</div>
-			)}
+		if (videoAspect > canvasAspect) {
+			// Video is wider - letterboxing on top/bottom
+			canvasScale = canvas.width / video.videoWidth
+			const scaledHeight = video.videoHeight * canvasScale
+			offsetY = (canvas.height - scaledHeight) / 2
+		} else {
+			// Video is taller - letterboxing on left/right
+			canvasScale = canvas.height / video.videoHeight
+			const scaledWidth = video.videoWidth * canvasScale
+			offsetX = (canvas.width - scaledWidth) / 2
+		}
+
+		// Mid-point of the scale line in video coordinates
+		const midX = (startPoint.x + endPoint.x) / 2
+		const midY = (startPoint.y + endPoint.y) / 2
+
+		// Convert to canvas coordinates
+		const canvasX = midX * canvasScale + offsetX
+		const canvasY = midY * canvasScale + offsetY
+
+		// Get canvas position relative to container
+		const containerRect = containerRef.current.getBoundingClientRect()
+		const canvasRect = canvas.getBoundingClientRect()
+
+		setPosition({
+			x: canvasX + (canvasRect.left - containerRect.left),
+			y: canvasY + (canvasRect.top - containerRect.top),
+		})
+	}, [startPoint, endPoint, containerRef, canvasRef])
+
+	// Focus input when it appears
+	useEffect(() => {
+		if (inputRef.current) {
+			inputRef.current.focus()
+		}
+	}, [])
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === 'Enter') {
+			e.preventDefault()
+			if (value && parseFloat(value) > 0) {
+				onSave()
+			}
+		} else if (e.key === 'Escape') {
+			e.preventDefault()
+			onCancel()
+		}
+	}
+
+	return (
+		<div
+			className="absolute z-20"
+			style={{
+				left: `${position.x}px`,
+				top: `${position.y}px`,
+				transform: 'translate(-50%, -50%)',
+			}}
+		>
+			<div className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white p-2 shadow-lg">
+				<Input
+					ref={inputRef}
+					type="number"
+					step="0.01"
+					min="0.01"
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					onKeyDown={handleKeyDown}
+					placeholder="Distance (m)"
+					className="h-8 w-24 text-sm"
+				/>
+				<span className="text-xs text-slate-500">m</span>
+			</div>
 		</div>
 	)
 }

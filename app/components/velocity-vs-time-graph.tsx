@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react'
-import type { ReactElement } from 'react'
+import { useState, useMemo, type ReactElement } from 'react'
 import {
 	LineChart,
 	Line,
@@ -10,7 +9,7 @@ import {
 	Legend,
 	ResponsiveContainer,
 } from 'recharts'
-import { Button } from '#app/components/ui/button.tsx'
+import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
 
 interface TrackingPoint {
 	frame: number
@@ -47,7 +46,9 @@ function calculateVelocity(
 	if (points.length === 0) return []
 	if (points.length === 1) {
 		// Single point: velocity is 0 (no change)
-		const time = points[0].frame / FPS
+		const firstPoint = points[0]
+		if (!firstPoint) return []
+		const time = firstPoint.frame / FPS
 		return [{ time, velocity: 0 }]
 	}
 
@@ -58,12 +59,18 @@ function calculateVelocity(
 
 	for (let i = 0; i < sortedPoints.length; i++) {
 		const point = sortedPoints[i]
+		if (!point) continue
+
 		const time = point.frame / FPS
 		let velocity: number
 
 		if (i === 0) {
 			// First frame: use forward difference
 			const nextPoint = sortedPoints[i + 1]
+			if (!nextPoint) {
+				velocities.push({ time, velocity: 0 })
+				continue
+			}
 			const deltaPosition =
 				axis === 'x' ? nextPoint.x - point.x : nextPoint.y - point.y
 			const deltaTime = (nextPoint.frame - point.frame) / FPS
@@ -71,6 +78,10 @@ function calculateVelocity(
 		} else if (i === sortedPoints.length - 1) {
 			// Last frame: use backward difference
 			const prevPoint = sortedPoints[i - 1]
+			if (!prevPoint) {
+				velocities.push({ time, velocity: 0 })
+				continue
+			}
 			const deltaPosition =
 				axis === 'x' ? point.x - prevPoint.x : point.y - prevPoint.y
 			const deltaTime = (point.frame - prevPoint.frame) / FPS
@@ -78,6 +89,10 @@ function calculateVelocity(
 		} else {
 			// Middle frames: use forward difference
 			const nextPoint = sortedPoints[i + 1]
+			if (!nextPoint) {
+				velocities.push({ time, velocity: 0 })
+				continue
+			}
 			const deltaPosition =
 				axis === 'x' ? nextPoint.x - point.x : nextPoint.y - point.y
 			const deltaTime = (nextPoint.frame - point.frame) / FPS
@@ -191,7 +206,6 @@ export function VelocityVsTimeGraph({
 
 			const minTime = Math.min(...times)
 			const maxTime = Math.max(...times)
-			const timeRange = maxTime - minTime
 
 			// Calculate velocity range
 			const velocityValues: number[] = []
@@ -347,23 +361,19 @@ export function VelocityVsTimeGraph({
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<h2 className="text-h2">Velocity vs Time</h2>
-				<div className="flex gap-2">
-					<Button
-						variant={selectedAxis === 'x' ? 'default' : 'outline'}
-						size="sm"
-						onClick={() => setSelectedAxis('x')}
-					>
-						X Axis
-					</Button>
-					<Button
-						variant={selectedAxis === 'y' ? 'default' : 'outline'}
-						size="sm"
-						onClick={() => setSelectedAxis('y')}
-					>
-						Y Axis
-					</Button>
-				</div>
+				<Tabs
+					value={selectedAxis}
+					onValueChange={(value) => setSelectedAxis(value as AxisType)}
+				>
+					<TabsList className="grid w-auto grid-cols-2">
+						<TabsTrigger className="text-xs" value="x">
+							X Axis
+						</TabsTrigger>
+						<TabsTrigger className="text-xs" value="y">
+							Y Axis
+						</TabsTrigger>
+					</TabsList>
+				</Tabs>
 			</div>
 			<div className="h-96 w-full">
 				<ResponsiveContainer width="100%" height="100%">

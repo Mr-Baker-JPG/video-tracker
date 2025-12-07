@@ -10,9 +10,9 @@
 		"cssVariables": true
 	},
 	"aliases": {
-		"components": "#app/components",
-		"utils": "#app/utils/misc",
-		"ui": "#app/components/ui",
+		"components": "./app/components",
+		"utils": "#app/utils/misc.tsx",
+		"ui": "./app/components/ui",
 		"lib": "#app/utils"
 	}
 }

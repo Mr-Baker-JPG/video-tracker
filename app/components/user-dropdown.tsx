@@ -16,30 +16,42 @@ import { Icon } from './ui/icon'
 export function UserDropdown() {
 	const user = useUser()
 	const formRef = useRef<HTMLFormElement>(null)
+
+	// Get user initials for avatar
+	const getInitials = (name: string | null | undefined, username: string) => {
+		if (name) {
+			const parts = name.trim().split(/\s+/)
+			if (parts.length >= 2) {
+				return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+			}
+			return name[0]?.toUpperCase() || username[0]?.toUpperCase() || 'U'
+		}
+		return username[0]?.toUpperCase() || 'U'
+	}
+
+	const initials = getInitials(user.name, user.username)
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button asChild variant="secondary">
-					<Link
-						to={`/users/${user.username}`}
-						// this is for progressive enhancement
-						onClick={(e) => e.preventDefault()}
-						className="flex items-center gap-2"
-						aria-label="User menu"
-					>
+				<button
+					type="button"
+					className="text-primary flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-sm font-semibold transition-colors hover:bg-blue-100"
+					aria-label="User menu"
+				>
+					{user.image?.objectKey ? (
 						<Img
-							className="size-8 rounded-full object-cover"
+							className="size-9 rounded-full object-cover"
 							alt={user.name ?? user.username}
-							src={getUserImgSrc(user.image?.objectKey)}
-							width={256}
-							height={256}
+							src={getUserImgSrc(user.image.objectKey)}
+							width={36}
+							height={36}
 							aria-hidden="true"
 						/>
-						<span className="text-body-sm font-bold">
-							{user.name ?? user.username}
-						</span>
-					</Link>
-				</Button>
+					) : (
+						<span>{initials}</span>
+					)}
+				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="end">

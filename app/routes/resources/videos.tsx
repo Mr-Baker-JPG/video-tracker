@@ -47,7 +47,7 @@ async function serveVideoFromFilesystem(
 		if (rangeHeader) {
 			const matches = rangeHeader.match(/bytes=(\d+)-(\d*)/)
 			if (matches) {
-				const start = parseInt(matches[1], 10)
+				const start = parseInt(matches[1] ?? '0', 10)
 				const end = matches[2] ? parseInt(matches[2], 10) : file.length - 1
 
 				if (
@@ -59,7 +59,7 @@ async function serveVideoFromFilesystem(
 					const chunk = file.subarray(start, end + 1)
 					const contentRange = `bytes ${start}-${end}/${file.length}`
 
-					return new Response(chunk, {
+					return new Response(Buffer.from(chunk), {
 						status: 206, // Partial Content
 						headers: {
 							'Content-Type': 'video/mp4',
@@ -74,7 +74,7 @@ async function serveVideoFromFilesystem(
 		}
 
 		// Full file response
-		return new Response(file, {
+		return new Response(Buffer.from(file), {
 			headers: {
 				'Content-Type': 'video/mp4',
 				'Content-Length': fileStats.size.toString(),

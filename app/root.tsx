@@ -19,7 +19,7 @@ import { EpicProgress } from './components/progress-bar.tsx'
 import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { Button } from './components/ui/button.tsx'
-import { href as iconsHref } from './components/ui/icon.tsx'
+import { href as iconsHref, Icon } from './components/ui/icon.tsx'
 import { EpicToaster } from './components/ui/sonner.tsx'
 import { UserDropdown } from './components/user-dropdown.tsx'
 import {
@@ -58,6 +58,10 @@ export const links: Route.LinksFunction = () => {
 			crossOrigin: 'use-credentials',
 		} as const, // necessary to make typescript happy
 		{ rel: 'stylesheet', href: tailwindStyleSheetUrl },
+		{
+			rel: 'stylesheet',
+			href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+		},
 	].filter(Boolean)
 }
 
@@ -157,8 +161,14 @@ function Document({
 					<meta name="robots" content="noindex, nofollow" />
 				)}
 				<Links />
+				<style
+					nonce={nonce}
+					dangerouslySetInnerHTML={{
+						__html: `body { font-family: 'Inter', sans-serif; }`,
+					}}
+				/>
 			</head>
-			<body className="bg-background text-foreground">
+			<body className="flex min-h-screen flex-col bg-slate-50 text-slate-900 antialiased">
 				{children}
 				<script
 					nonce={nonce}
@@ -199,34 +209,74 @@ function App() {
 			optimizerEndpoint="/resources/images"
 			getSrc={getImgSrc}
 		>
-			<div className="flex min-h-screen flex-col justify-between">
-				<header className="container py-6">
-					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
-						<Logo />
-						<div className="ml-auto hidden max-w-sm flex-1 sm:block">
-							{searchBar}
+			<div className="flex min-h-screen flex-col">
+				<nav className="sticky top-0 z-50 border-b bg-white shadow-sm">
+					<div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+						<div className="flex items-center gap-6">
+							<Logo />
+							{user && (
+								<div className="hidden gap-1 text-sm font-medium text-slate-500 md:flex">
+									<Link
+										to="/videos"
+										className="rounded-md bg-slate-100 px-3 py-2 text-slate-900 transition-colors"
+									>
+										Dashboard
+									</Link>
+									<Link
+										to="/tutorials"
+										className="hover:text-primary rounded-md px-3 py-2 transition-colors hover:bg-slate-50"
+									>
+										Tutorials
+									</Link>
+									<Link
+										to="/classroom"
+										className="hover:text-primary rounded-md px-3 py-2 transition-colors hover:bg-slate-50"
+									>
+										Classroom
+									</Link>
+								</div>
+							)}
 						</div>
-						<div className="flex items-center gap-10">
+						<div className="flex items-center gap-3">
 							{user ? (
-								<UserDropdown />
+								<>
+									<button
+										type="button"
+										className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+										aria-label="Notifications"
+									>
+										<Icon name="bell" className="h-4 w-4" />
+									</button>
+									<UserDropdown />
+								</>
 							) : (
 								<Button asChild variant="default" size="lg">
 									<Link to="/login">Log In</Link>
 								</Button>
 							)}
 						</div>
-						<div className="block w-full sm:hidden">{searchBar}</div>
-					</nav>
-				</header>
+					</div>
+				</nav>
 
-				<div className="flex flex-1 flex-col">
+				<main className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-6 lg:p-8">
 					<Outlet />
-				</div>
+				</main>
 
-				<div className="container flex justify-between pb-5">
-					<Logo />
-					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-				</div>
+				<footer className="mt-12 border-t bg-white py-8">
+					<div className="mx-auto flex max-w-7xl items-center justify-between px-4">
+						<p className="text-sm text-slate-400">
+							&copy; 2025 Videotrack Analysis Tool. v1.1.0
+						</p>
+						<div className="flex gap-4 text-sm text-slate-400">
+							<Link to="/support" className="hover:text-slate-600">
+								Help Center
+							</Link>
+							<Link to="/privacy" className="hover:text-slate-600">
+								Privacy
+							</Link>
+						</div>
+					</div>
+				</footer>
 			</div>
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
@@ -236,13 +286,14 @@ function App() {
 
 function Logo() {
 	return (
-		<Link to="/" className="group grid leading-snug">
-			<span className="font-light transition group-hover:-translate-x-1">
-				epic
-			</span>
-			<span className="font-bold transition group-hover:translate-x-1">
-				notes
-			</span>
+		<Link
+			to="/videos"
+			className="flex cursor-pointer items-center gap-2 text-xl font-bold text-slate-900"
+		>
+			<div className="bg-primary rounded p-1 text-white">
+				<Icon name="activity" className="h-5 w-5" />
+			</div>
+			Videotrack
 		</Link>
 	)
 }

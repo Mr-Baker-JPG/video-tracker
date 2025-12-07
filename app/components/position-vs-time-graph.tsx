@@ -10,7 +10,7 @@ import {
 	Legend,
 	ResponsiveContainer,
 } from 'recharts'
-import { Button } from '#app/components/ui/button.tsx'
+import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
 
 interface TrackingPoint {
 	frame: number
@@ -301,7 +301,7 @@ export function PositionVsTimeGraph({
 				timeDomain: timeResult.domain,
 				positionDomain: positionResult.domain,
 			}
-		}, [chartData, selectedAxis])
+		}, [chartData, selectedAxis, scale])
 
 	if (trackingPoints.length === 0) {
 		return (
@@ -314,23 +314,20 @@ export function PositionVsTimeGraph({
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<h2 className="text-h2">Position vs Time</h2>
-				<div className="flex gap-2">
-					<Button
-						variant={selectedAxis === 'x' ? 'default' : 'outline'}
-						size="sm"
-						onClick={() => setSelectedAxis('x')}
-					>
-						X Axis
-					</Button>
-					<Button
-						variant={selectedAxis === 'y' ? 'default' : 'outline'}
-						size="sm"
-						onClick={() => setSelectedAxis('y')}
-					>
-						Y Axis
-					</Button>
-				</div>
+				{/* <h2 className="text-h2">Position vs Time</h2> */}
+				<Tabs
+					value={selectedAxis}
+					onValueChange={(value) => setSelectedAxis(value as AxisType)}
+				>
+					<TabsList className="grid h-fit w-auto grid-cols-2 text-xs">
+						<TabsTrigger className="h-5 text-xs" value="x">
+							X Axis
+						</TabsTrigger>
+						<TabsTrigger className="h-5 text-xs" value="y">
+							Y Axis
+						</TabsTrigger>
+					</TabsList>
+				</Tabs>
 			</div>
 			<div className="h-96 w-full">
 				<ResponsiveContainer width="100%" height="100%">

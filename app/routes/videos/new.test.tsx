@@ -523,5 +523,5 @@ test('YouTube video ID extraction works correctly', async () => {
 	).toBe('dQw4w9WgXcQ')
 
 	// Test invalid URL
-	expect(extractYouTubeVideoId('not a url')).toBe(null)
+	expect(extractYouTubeVideoId('not a url')).toBeNull()
 })
