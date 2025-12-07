@@ -427,8 +427,8 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Implementation:**
 
-- Added export action to video route (`/videos/$videoId`) that generates CSV from
-  tracking points
+- Added export action to video route (`/videos/$videoId`) that generates CSV
+  from tracking points
 - Created `generateTrackingDataCSV` function that:
   - Formats tracking points with columns: trackingObjectId, frame, time
     (seconds), x (pixels), y (pixels)
@@ -452,7 +452,8 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Notes:**
 
-- CSV format includes trackingObjectId column to support multiple object tracking
+- CSV format includes trackingObjectId column to support multiple object
+  tracking
 - Time is calculated as frame / 30 (assuming 30fps)
 - Meter conversions are only included when scale calibration is set
 - Export button is disabled when no tracking points exist

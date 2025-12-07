@@ -918,48 +918,16 @@ export function VideoPlayer({
 							variant="outline"
 							size="sm"
 							disabled={localTrackingPoints.length === 0}
-							onClick={async () => {
+							onClick={() => {
 								if (!videoId) return
-								const formData = new FormData()
-								formData.append('intent', 'export-tracking-data')
-								formData.append('videoId', videoId)
-
-								try {
-									const response = await fetch(`/videos/${videoId}`, {
-										method: 'POST',
-										body: formData,
-									})
-
-									if (!response.ok) {
-										throw new Error('Export failed')
-									}
-
-									// Get filename from Content-Disposition header
-									const contentDisposition = response.headers.get(
-										'Content-Disposition',
-									)
-									let filename = 'tracking_data.csv'
-									if (contentDisposition) {
-										const filenameMatch =
-											contentDisposition.match(/filename="(.+)"/)
-										if (filenameMatch) {
-											filename = filenameMatch[1]
-										}
-									}
-
-									// Create blob and download
-									const blob = await response.blob()
-									const url = window.URL.createObjectURL(blob)
-									const a = document.createElement('a')
-									a.href = url
-									a.download = filename
-									document.body.appendChild(a)
-									a.click()
-									document.body.removeChild(a)
-									window.URL.revokeObjectURL(url)
-								} catch (error) {
-									console.error('Export error:', error)
-								}
+								// Use resource route for direct CSV download
+								const url = `/resources/export-tracking-data?videoId=${encodeURIComponent(videoId)}`
+								const a = document.createElement('a')
+								a.href = url
+								a.download = 'tracking_data.csv'
+								document.body.appendChild(a)
+								a.click()
+								document.body.removeChild(a)
 							}}
 						>
 							<Icon name="download" className="mr-2" />

@@ -649,9 +649,7 @@ test('User can export tracking data and download CSV file', async ({
 	await page.goto(`/videos/${video.id}`)
 
 	// Wait for video player to load
-	await expect(
-		page.getByRole('heading', { name: videoFileName }),
-	).toBeVisible()
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
 
 	// Wait for export button to be visible (indicates tracking points are loaded)
 	const exportButton = page.getByRole('button', { name: /export csv/i })
@@ -661,7 +659,7 @@ test('User can export tracking data and download CSV file', async ({
 	// Set up download listener before clicking export
 	const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
 
-	// Click the export button
+	// Click the export button (triggers navigation to resource route)
 	await exportButton.click()
 
 	// Wait for download to start
