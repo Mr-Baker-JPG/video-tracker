@@ -28,26 +28,46 @@ test('User can play, pause, and seek through video', async ({
 	// Click upload submit button (not the toggle button)
 	await page.getByRole('button', { name: 'Upload', exact: true }).click()
 
-	// Wait for upload to complete
+	// Wait for upload to complete - wait for success toast or redirect
 	await expect(page).toHaveURL('/videos/new')
+	// Wait a bit for the upload to process
+	await page.waitForTimeout(1000)
 
 	// Wait for video to be stored in database (with retry)
 	let video = null
-	for (let i = 0; i < 20; i++) {
+	for (let i = 0; i < 30; i++) {
 		video = await prisma.video.findFirst({
 			where: {
 				userId: user.id,
 				filename: videoFileName,
 			},
+			select: {
+				id: true,
+				filename: true,
+				url: true,
+				userId: true,
+				duration: true,
+				uploadedAt: true,
+			},
 		})
-		if (video) break
-		await page.waitForTimeout(200) // Wait 200ms before retrying
+		if (video && video.filename) break
+		await page.waitForTimeout(300) // Wait 300ms before retrying
 	}
 
 	expect(video).toBeDefined()
-	expect(video?.filename).toBe(videoFileName)
-	expect(video?.userId).toBe(user.id)
-	expect(video?.url).toBeDefined()
+	if (!video) {
+		// Debug: check all videos for this user
+		const allVideos = await prisma.video.findMany({
+			where: { userId: user.id },
+			select: { id: true, filename: true, url: true },
+		})
+		throw new Error(
+			`Video not found. All videos for user: ${JSON.stringify(allVideos)}`,
+		)
+	}
+	expect(video.filename).toBe(videoFileName)
+	expect(video.userId).toBe(user.id)
+	expect(video.url).toBeDefined()
 
 	// Assert video is not null for TypeScript
 	if (!video) {
@@ -463,27 +483,47 @@ test('User can draw a scale line and input distance', async ({
 	}
 
 	expect(video).toBeDefined()
-	if (!video) throw new Error('Video not found')
+	expect(video?.filename).toBe(videoFileName)
+	expect(video?.userId).toBe(user.id)
+	expect(video?.url).toBeDefined()
 
-	// Navigate to video player page
+	// Assert video is not null for TypeScript
+	if (!video) {
+		throw new Error('Video not found')
+	}
+
+	// Navigate to video player page (use page.goto for dynamic routes)
 	await page.goto(`/videos/${video.id}`)
 
-	// Upload a video
-	const fileInput = page.getByLabel(/video file/i)
-	await fileInput.setInputFiles(
-		path.resolve(__dirname, './data/WhichLandsFirst.mp4'),
-	)
+	// Wait for video player to load - use the actual filename from database
+	await expect(
+		page.getByRole('heading', { name: video.filename }),
+	).toBeVisible()
 
-	// Wait for upload to complete
-	await page.waitForURL(/\/videos\/\w+/, { timeout: 30000 })
-	const videoIdMatch = page.url().match(/\/videos\/(\w+)/)
-	const videoId = videoIdMatch?.[1]
-	expect(videoId).toBeDefined()
+	// Check that video element exists
+	const videoElement = page.getByLabel('Video content')
+	await expect(videoElement).toBeVisible()
 
-	// Wait for video to load
-	const video = page.locator('video')
-	await expect(video).toBeVisible({ timeout: 10000 })
-	await page.waitForTimeout(2000) // Wait for video metadata to load
+	// Wait for video metadata to load by waiting for the video's loadedmetadata event
+	await videoElement.evaluate((el) => {
+		return new Promise<void>((resolve) => {
+			if ((el as HTMLVideoElement).readyState >= 1) {
+				resolve()
+				return
+			}
+			el.addEventListener('loadedmetadata', () => resolve(), { once: true })
+		})
+	})
+
+	// Wait for video metadata to load first (duration must be available)
+	// This ensures the video file is actually loaded and ready
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
 
 	// Click "Set Scale" button
 	const setScaleButton = page.getByRole('button', { name: /set scale/i })
@@ -535,7 +575,7 @@ test('User can draw a scale line and input distance', async ({
 
 	// Verify scale was saved in database
 	const scale = await prisma.videoScale.findUnique({
-		where: { videoId: videoId! },
+		where: { videoId: video.id },
 	})
 
 	expect(scale).toBeDefined()
