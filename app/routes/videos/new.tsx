@@ -146,6 +146,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const objectKey = await uploadVideo(userId, videoFile)
 
 		// Save video metadata to database
+		// SQLite auto-commits transactions, so no need for explicit commit
 		await prisma.video.create({
 			data: {
 				filename: videoFile.name,

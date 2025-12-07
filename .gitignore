@@ -18,6 +18,9 @@ node_modules
 /tests/fixtures/openimg/
 /coverage
 
+# Local storage for dev mode (temp folder)
+/.storage/
+
 /other/cache.db
 
 # Easy way to create temporary files/folders that won't accidentally be added to git

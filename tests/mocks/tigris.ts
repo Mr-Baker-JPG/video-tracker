@@ -10,8 +10,19 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const FIXTURES_DIR = path.join(__dirname, '..', 'fixtures')
-const MOCK_STORAGE_DIR = path.join(FIXTURES_DIR, 'uploaded')
 const FIXTURES_IMAGES_DIR = path.join(FIXTURES_DIR, 'images')
+
+// Determine storage directory based on environment
+// Test mode: use fixtures directory
+// Dev mode: use .storage directory (temp folder)
+function getMockStorageDir() {
+	const isTest = process.env.NODE_ENV === 'test'
+	if (isTest) {
+		return path.join(FIXTURES_DIR, 'uploaded')
+	}
+	// Dev mode with mocks: use .storage temp folder
+	return path.join(process.cwd(), '.storage', 'uploaded')
+}
 const STORAGE_ENDPOINT = process.env.AWS_ENDPOINT_URL_S3
 const STORAGE_BUCKET = process.env.BUCKET_NAME
 const STORAGE_ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID
@@ -50,7 +61,8 @@ export const handlers = [
 
 			assertKey(key)
 
-			const filePath = path.join(MOCK_STORAGE_DIR, ...key)
+			const storageDir = getMockStorageDir()
+			const filePath = path.join(storageDir, ...key)
 			const parentDir = path.dirname(filePath)
 			await fs.mkdir(parentDir, { recursive: true })
 
@@ -63,11 +75,12 @@ export const handlers = [
 
 	http.get(
 		`${STORAGE_ENDPOINT}/${STORAGE_BUCKET}/:key*`,
-		async ({ params }) => {
+		async ({ request, params }) => {
 			const { key } = params
 			assertKey(key)
 
-			const filePath = path.join(MOCK_STORAGE_DIR, ...key)
+			const storageDir = getMockStorageDir()
+			const filePath = path.join(storageDir, ...key)
 			try {
 				// Check tests/fixtures/images directory first
 				const testFixturesPath = path.join(FIXTURES_IMAGES_DIR, ...key)
@@ -81,10 +94,47 @@ export const handlers = [
 
 				const contentType =
 					getMimeType(key.at(-1) || '') || 'application/octet-stream'
+
+				// Handle Range requests for video seeking and metadata
+				const rangeHeader = request.headers.get('range')
+				if (rangeHeader) {
+					// Parse range header (e.g., "bytes=0-1023" or "bytes=1024-")
+					const matches = rangeHeader.match(/bytes=(\d+)-(\d*)/)
+					if (matches) {
+						const start = parseInt(matches[1], 10)
+						const end = matches[2] ? parseInt(matches[2], 10) : file.length - 1
+
+						// Ensure valid range
+						if (
+							start >= 0 &&
+							start < file.length &&
+							end >= start &&
+							end < file.length
+						) {
+							const chunk = file.subarray(start, end + 1)
+							const contentRange = `bytes ${start}-${end}/${file.length}`
+
+							return new HttpResponse(chunk, {
+								status: 206, // Partial Content
+								headers: {
+									'Content-Type': contentType,
+									'Content-Length': chunk.length.toString(),
+									'Content-Range': contentRange,
+									'Accept-Ranges': 'bytes',
+									'Cache-Control': 'public, max-age=31536000, immutable',
+								},
+							})
+						}
+					}
+					// Invalid range, return full file
+				}
+
+				// Full file response
 				return new HttpResponse(file, {
 					headers: {
 						'Content-Type': contentType,
 						'Content-Length': file.length.toString(),
+						'Accept-Ranges': 'bytes',
 						'Cache-Control': 'public, max-age=31536000, immutable',
 					},
 				})
