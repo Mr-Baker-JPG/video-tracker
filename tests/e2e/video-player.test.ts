@@ -1260,7 +1260,11 @@ test('User can save a tracking session', async ({ page, navigate, login }) => {
 	expect(scale?.pixelsPerMeter).toBeGreaterThan(0)
 })
 
-test('User can load a saved tracking session', async ({ page, navigate, login }) => {
+test('User can load a saved tracking session', async ({
+	page,
+	navigate,
+	login,
+}) => {
 	const user = await login()
 
 	// Upload a video

@@ -196,12 +196,28 @@ model Video {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId String
 
-  trackingPoints TrackingPoint[]
-  scale          VideoScale?
+  trackingPoints  TrackingPoint[]
+  trackingObjects TrackingObject[]
+  scale           VideoScale?
 
   // non-unique foreign key
   @@index([userId])
   @@index([userId, uploadedAt])
+}
+
+model TrackingObject {
+  id        String   @id @default(cuid())
+  name      String?  // Optional name for the tracking object
+  color     String?  // Optional color (hex or CSS color) for visualization
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  videoId String
+
+  // non-unique foreign key
+  @@index([videoId])
+  @@unique([videoId, id]) // Ensure one TrackingObject per video per ID
 }
 
 model TrackingPoint {

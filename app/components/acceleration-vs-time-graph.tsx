@@ -22,8 +22,15 @@ interface Scale {
 	pixelsPerMeter: number
 }
 
+interface TrackingObject {
+	id: string
+	name: string | null
+	color: string | null
+}
+
 interface AccelerationVsTimeGraphProps {
 	trackingPoints: TrackingPoint[]
+	trackingObjects?: TrackingObject[]
 	scale: Scale | null
 }
 
@@ -184,9 +191,28 @@ function calculateAcceleration(
 
 export function AccelerationVsTimeGraph({
 	trackingPoints,
+	trackingObjects = [],
 	scale,
 }: AccelerationVsTimeGraphProps) {
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
+
+	// Helper to get tracking object name
+	const getTrackingObjectName = (id: string): string => {
+		const obj = trackingObjects.find((o) => o.id === id)
+		return obj?.name || `Object ${id.slice(-6)}`
+	}
+
+	// Helper to get tracking object color
+	const getTrackingObjectColor = (id: string): string => {
+		const obj = trackingObjects.find((o) => o.id === id)
+		if (obj?.color) return obj.color
+		// Generate color from ID hash
+		const hash = id.split('').reduce((acc, char) => {
+			return char.charCodeAt(0) + ((acc << 5) - acc)
+		}, 0)
+		const hue = Math.abs(hash) % 360
+		return `hsl(${hue}, 70%, 50%)`
+	}
 
 	// Transform tracking points into acceleration chart data
 	const chartData = useMemo(() => {
@@ -218,7 +244,7 @@ export function AccelerationVsTimeGraph({
 		return Array.from(timeMap.values()).sort(
 			(a, b) => (a.time ?? 0) - (b.time ?? 0),
 		)
-	}, [trackingPoints, selectedAxis, scale])
+	}, [trackingPoints, selectedAxis, scale, trackingObjects])
 
 	// Generate line components for each tracking object
 	const lines = useMemo(() => {
@@ -230,8 +256,8 @@ export function AccelerationVsTimeGraph({
 		for (const objectId of objectIds) {
 			const dataKey = `${objectId}_acceleration`
 
-			// Generate a color based on object ID for consistency
-			const color = `hsl(${(objectId.charCodeAt(0) * 137.508) % 360}, 70%, 50%)`
+			const color = getTrackingObjectColor(objectId)
+			const name = getTrackingObjectName(objectId)
 
 			lines.push(
 				<Line
@@ -241,7 +267,7 @@ export function AccelerationVsTimeGraph({
 					stroke={color}
 					strokeWidth={2}
 					dot={{ r: 3 }}
-					name={`Object ${objectId.slice(-6)}`}
+					name={name}
 				/>,
 			)
 		}

@@ -20,7 +20,9 @@ function renderWithRouter(component: React.ReactElement) {
 }
 
 test('Video player component renders with controls', () => {
-	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
 
 	// Check video element exists
 	const video = container.querySelector('video')
@@ -43,7 +45,9 @@ test('Video player component renders with controls', () => {
 
 test('Play/pause functionality works', async () => {
 	const user = userEvent.setup()
-	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
 
 	// Wait for video element to be rendered
 	await waitFor(() => {
@@ -113,7 +117,9 @@ test('Play/pause functionality works', async () => {
 
 test('Reload button appears when at the end of video', async () => {
 	const user = userEvent.setup()
-	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
 
 	await waitFor(() => {
 		const video = container.querySelector('video')
@@ -165,7 +171,9 @@ test('Reload button appears when at the end of video', async () => {
 
 test('3-second seek buttons work', async () => {
 	const user = userEvent.setup()
-	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
 
 	await waitFor(() => {
 		const video = container.querySelector('video')
@@ -208,7 +216,9 @@ test('3-second seek buttons work', async () => {
 })
 
 test('Time display includes milliseconds', () => {
-	const { container } = renderWithRouter(<VideoPlayer src="/test-video.mp4" />)
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
 
 	// Time display should show format with milliseconds (MM:SS.mmm)
 	// The time is displayed in spans with class "font-mono text-[10px] text-slate-600"
@@ -303,7 +313,11 @@ test('Path toggle shows/hides trajectory', async () => {
 	]
 
 	const { container } = renderWithRouter(
-		<VideoPlayer src="/test-video.mp4" trackingPoints={trackingPoints} />,
+		<VideoPlayer
+			src="/test-video.mp4"
+			trackingPoints={trackingPoints}
+			trackingObjects={[]}
+		/>,
 	)
 
 	await waitFor(() => {

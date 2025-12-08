@@ -12,6 +12,12 @@ interface TrackingPoint {
 	trackingObjectId: string
 }
 
+interface TrackingObject {
+	id: string
+	name: string | null
+	color: string | null
+}
+
 interface Scale {
 	id: string
 	startX: number
@@ -27,6 +33,9 @@ interface VideoPlayerProps {
 	className?: string
 	videoId?: string
 	trackingPoints?: TrackingPoint[]
+	trackingObjects?: TrackingObject[]
+	activeTrackingObjectId?: string | null
+	onActiveTrackingObjectChange?: (id: string | null) => void
 	scale?: Scale | null
 	onScaleCalibrationModeChange?: (isActive: boolean) => void
 	isScaleCalibrationModeExternal?: boolean
@@ -45,6 +54,9 @@ export function VideoPlayer({
 	className,
 	videoId,
 	trackingPoints = [],
+	trackingObjects = [],
+	activeTrackingObjectId: externalActiveTrackingObjectId,
+	onActiveTrackingObjectChange,
 	scale: initialScale = null,
 	onScaleCalibrationModeChange,
 	isScaleCalibrationModeExternal = false,
@@ -65,9 +77,59 @@ export function VideoPlayer({
 	const [seekTime, setSeekTime] = useState<number | null>(null)
 	const [localTrackingPoints, setLocalTrackingPoints] =
 		useState<TrackingPoint[]>(trackingPoints)
-	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
-		string | null
-	>(null)
+	const [localTrackingObjects, setLocalTrackingObjects] =
+		useState<TrackingObject[]>(trackingObjects)
+	const [internalActiveTrackingObjectId, setInternalActiveTrackingObjectId] =
+		useState<string | null>(null)
+
+	// Use external activeTrackingObjectId if provided, otherwise use internal state
+	const activeTrackingObjectId =
+		externalActiveTrackingObjectId !== undefined
+			? externalActiveTrackingObjectId
+			: internalActiveTrackingObjectId
+
+	const setActiveTrackingObjectId = useCallback(
+		(id: string | null) => {
+			if (onActiveTrackingObjectChange) {
+				onActiveTrackingObjectChange(id)
+			} else {
+				setInternalActiveTrackingObjectId(id)
+			}
+		},
+		[onActiveTrackingObjectChange],
+	)
+
+	// Helper function to get tracking object info
+	const getTrackingObject = useCallback(
+		(id: string): TrackingObject | null => {
+			return localTrackingObjects.find((obj) => obj.id === id) || null
+		},
+		[localTrackingObjects],
+	)
+
+	// Helper function to get color for a tracking object
+	const getTrackingObjectColor = useCallback(
+		(id: string): string => {
+			const obj = getTrackingObject(id)
+			if (obj?.color) return obj.color
+			// Generate color from ID hash if no color set
+			const hash = id.split('').reduce((acc, char) => {
+				return char.charCodeAt(0) + ((acc << 5) - acc)
+			}, 0)
+			const hue = Math.abs(hash) % 360
+			return `hsl(${hue}, 70%, 50%)`
+		},
+		[getTrackingObject],
+	)
+
+	// Helper function to get name for a tracking object
+	const getTrackingObjectName = useCallback(
+		(id: string): string => {
+			const obj = getTrackingObject(id)
+			return obj?.name || `Object ${id.slice(-6)}`
+		},
+		[getTrackingObject],
+	)
 	// Trajectory path visibility toggle
 	const [showTrajectoryPaths, setShowTrajectoryPaths] = useState(true)
 	// Scale calibration state
@@ -474,6 +536,7 @@ export function VideoPlayer({
 			convertCanvasToVideoCoords,
 			scaleStartPoint,
 			scaleEndPoint,
+			setActiveTrackingObjectId,
 		],
 	)
 
@@ -668,12 +731,8 @@ export function VideoPlayer({
 				pointsByObject.forEach((objectPoints, trackingObjectId) => {
 					if (objectPoints.length < 2) return // Need at least 2 points for a line
 
-					// Generate a color based on tracking object ID for consistency
-					const hash = trackingObjectId.split('').reduce((acc, char) => {
-						return char.charCodeAt(0) + ((acc << 5) - acc)
-					}, 0)
-					const hue = Math.abs(hash) % 360
-					const trajectoryColor = `hsl(${hue}, 70%, 50%)`
+					// Use tracking object color if available, otherwise generate from ID
+					const trajectoryColor = getTrackingObjectColor(trackingObjectId)
 
 					ctx.strokeStyle = trajectoryColor
 					ctx.lineWidth = 2
@@ -755,7 +814,13 @@ export function VideoPlayer({
 		scaleStartPoint,
 		scaleEndPoint,
 		showTrajectoryPaths,
+		getTrackingObjectColor,
 	])
+
+	// Sync local tracking objects when prop changes
+	useEffect(() => {
+		setLocalTrackingObjects(trackingObjects)
+	}, [trackingObjects])
 
 	// Update local tracking points when fetcher returns new data
 	useEffect(() => {
@@ -793,7 +858,7 @@ export function VideoPlayer({
 				setActiveTrackingObjectId(newPoint.trackingObjectId)
 			}
 		}
-	}, [fetcher?.data, activeTrackingObjectId])
+	}, [fetcher?.data, activeTrackingObjectId, setActiveTrackingObjectId])
 
 	return (
 		<div className={className}>
@@ -950,19 +1015,19 @@ export function VideoPlayer({
 							<div
 								className="flex items-center gap-2 rounded-2xl px-3 py-1.5"
 								style={{
-									backgroundColor: 'var(--player-progress-bg)',
+									backgroundColor: getTrackingObjectColor(activeTrackingObjectId),
 									color: 'white',
 								}}
 							>
 								<div
 									className="h-2 w-2 rounded-full"
 									style={{
-										backgroundColor: 'var(--success)',
+										backgroundColor: 'white',
 										animation: 'pulse 2s ease-in-out infinite',
 									}}
 								/>
 								<span className="text-xs font-medium">
-									Tracking: Object {activeTrackingObjectId.slice(-6)}
+									Tracking: {getTrackingObjectName(activeTrackingObjectId)}
 								</span>
 							</div>
 						)}

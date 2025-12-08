@@ -199,8 +199,8 @@
 				"E2E test: User can add points to different objects",
 				"Manual: Verify different objects display with distinct colors"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F016",

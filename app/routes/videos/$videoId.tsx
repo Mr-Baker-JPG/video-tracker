@@ -1,12 +1,21 @@
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { useState } from 'react'
-import { data, Link } from 'react-router'
+import { data, Link, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { Input } from '#app/components/ui/input.tsx'
 import { ScrollArea } from '#app/components/ui/scroll-area.tsx'
 import {
 	Tabs,
@@ -40,6 +49,21 @@ const SaveScaleSchema = z.object({
 	endX: z.coerce.number().min(0),
 	endY: z.coerce.number().min(0),
 	distanceMeters: z.coerce.number().positive(),
+})
+
+const CreateTrackingObjectSchema = z.object({
+	intent: z.literal('create-tracking-object'),
+	videoId: z.string(),
+	name: z.string().optional(),
+	color: z.string().optional(),
+})
+
+const UpdateTrackingObjectSchema = z.object({
+	intent: z.literal('update-tracking-object'),
+	videoId: z.string(),
+	trackingObjectId: z.string(),
+	name: z.string().optional(),
+	color: z.string().optional(),
 })
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -76,6 +100,16 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 		orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
 	})
 
+	const trackingObjects = await prisma.trackingObject.findMany({
+		where: { videoId: video.id },
+		select: {
+			id: true,
+			name: true,
+			color: true,
+		},
+		orderBy: { createdAt: 'asc' },
+	})
+
 	const scale = await prisma.videoScale.findUnique({
 		where: { videoId: video.id },
 		select: {
@@ -91,7 +125,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
 	const videoSrc = getVideoSrc(video.url)
 
-	return { video, videoSrc, trackingPoints, scale }
+	return { video, videoSrc, trackingPoints, trackingObjects, scale }
 }
 
 export function generateTrackingDataCSV(
@@ -235,6 +269,119 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ success: true, scale })
 	}
 
+	if (intent === 'create-tracking-object') {
+		const submission = parseWithZod(formData, {
+			schema: CreateTrackingObjectSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId, name, color } = submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to create tracking objects for this video',
+			{ status: 403 },
+		)
+
+		// Generate a new tracking object ID
+		const trackingObjectId = `obj_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+		// Create new tracking object
+		const trackingObject = await prisma.trackingObject.create({
+			data: {
+				id: trackingObjectId,
+				videoId,
+				name: name || `Object ${trackingObjectId.slice(-6)}`,
+				color: color || null,
+			},
+			select: {
+				id: true,
+				name: true,
+				color: true,
+			},
+		})
+
+		return data({ success: true, trackingObject })
+	}
+
+	if (intent === 'update-tracking-object') {
+		const submission = parseWithZod(formData, {
+			schema: UpdateTrackingObjectSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId, trackingObjectId, name, color } = submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to update tracking objects for this video',
+			{ status: 403 },
+		)
+
+		// Verify tracking object exists
+		const existingObject = await prisma.trackingObject.findUnique({
+			where: {
+				videoId_id: {
+					videoId,
+					id: trackingObjectId,
+				},
+			},
+		})
+
+		invariantResponse(
+			existingObject,
+			'Tracking object not found',
+			{ status: 404 },
+		)
+
+		// Update tracking object
+		const trackingObject = await prisma.trackingObject.update({
+			where: {
+				videoId_id: {
+					videoId,
+					id: trackingObjectId,
+				},
+			},
+			data: {
+				...(name !== undefined && { name }),
+				...(color !== undefined && { color }),
+			},
+			select: {
+				id: true,
+				name: true,
+				color: true,
+			},
+		})
+
+		return data({ success: true, trackingObject })
+	}
+
 	// Handle tracking point creation (existing logic)
 	const submission = parseWithZod(formData, {
 		schema: CreateTrackingPointSchema,
@@ -267,6 +414,27 @@ export async function action({ request }: Route.ActionArgs) {
 	if (!finalTrackingObjectId) {
 		// Generate a new tracking object ID (using cuid-like format)
 		finalTrackingObjectId = `obj_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+	}
+
+	// Ensure TrackingObject exists for this trackingObjectId
+	const existingTrackingObject = await prisma.trackingObject.findUnique({
+		where: {
+			videoId_id: {
+				videoId,
+				id: finalTrackingObjectId,
+			},
+		},
+	})
+
+	if (!existingTrackingObject) {
+		// Create a new TrackingObject with default name
+		await prisma.trackingObject.create({
+			data: {
+				id: finalTrackingObjectId,
+				videoId,
+				name: `Object ${finalTrackingObjectId.slice(-6)}`,
+			},
+		})
 	}
 
 	// Check if a point already exists for this tracking object at this frame
@@ -320,6 +488,67 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
+	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
+		string | null
+	>(null)
+	const [editingObjectId, setEditingObjectId] = useState<string | null>(null)
+	const [editName, setEditName] = useState('')
+	const [editColor, setEditColor] = useState('')
+	const trackingObjectsFetcher = useFetcher()
+
+	// Helper to get tracking object name
+	const getTrackingObjectName = (id: string): string => {
+		const obj = loaderData.trackingObjects.find((o) => o.id === id)
+		return obj?.name || `Object ${id.slice(-6)}`
+	}
+
+	// Helper to get tracking object color
+	const getTrackingObjectColor = (id: string): string => {
+		const obj = loaderData.trackingObjects.find((o) => o.id === id)
+		if (obj?.color) return obj.color
+		// Generate color from ID hash
+		const hash = id.split('').reduce((acc, char) => {
+			return char.charCodeAt(0) + ((acc << 5) - acc)
+		}, 0)
+		const hue = Math.abs(hash) % 360
+		return `hsl(${hue}, 70%, 50%)`
+	}
+
+	const handleCreateTrackingObject = () => {
+		void trackingObjectsFetcher.submit(
+			{
+				intent: 'create-tracking-object',
+				videoId: loaderData.video.id,
+			},
+			{ method: 'POST' },
+		)
+	}
+
+	const handleUpdateTrackingObject = (id: string) => {
+		if (!editName.trim() && !editColor.trim()) {
+			setEditingObjectId(null)
+			return
+		}
+		void trackingObjectsFetcher.submit(
+			{
+				intent: 'update-tracking-object',
+				videoId: loaderData.video.id,
+				trackingObjectId: id,
+				...(editName.trim() && { name: editName.trim() }),
+				...(editColor.trim() && { color: editColor.trim() }),
+			},
+			{ method: 'POST' },
+		)
+		setEditingObjectId(null)
+		setEditName('')
+		setEditColor('')
+	}
+
+	const startEditing = (obj: { id: string; name: string | null; color: string | null }) => {
+		setEditingObjectId(obj.id)
+		setEditName(obj.name || '')
+		setEditColor(obj.color || '')
+	}
 
 	// Sort points by frame for display
 	const sortedPoints = [...loaderData.trackingPoints].sort(
@@ -422,24 +651,124 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 						</div>
 
 						<div className="flex items-center gap-2">
-							<div className="flex items-center gap-1.5 rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600">
-								<div className="bg-primary h-2 w-2 animate-pulse rounded-full" />
-								Tracking: Object 1
-							</div>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button variant="outline" size="sm" className="gap-2">
+										{activeTrackingObjectId ? (
+											<>
+												<div
+													className="h-2 w-2 rounded-full"
+													style={{
+														backgroundColor: getTrackingObjectColor(
+															activeTrackingObjectId,
+														),
+													}}
+												/>
+												<span className="text-xs">
+													{getTrackingObjectName(activeTrackingObjectId)}
+												</span>
+											</>
+										) : (
+											<>
+												<Icon name="crosshair-2" className="h-3 w-3" />
+												<span className="text-xs">Select Object</span>
+											</>
+										)}
+										<Icon name="chevron-down" className="h-3 w-3" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="w-56">
+									<DropdownMenuLabel>Tracking Objects</DropdownMenuLabel>
+									<DropdownMenuSeparator />
+									{loaderData.trackingObjects.length === 0 ? (
+										<DropdownMenuItem disabled>
+											<span className="text-xs text-slate-500">
+												No objects yet
+											</span>
+										</DropdownMenuItem>
+									) : (
+										loaderData.trackingObjects.map((obj) => (
+											<DropdownMenuItem
+												key={obj.id}
+												onClick={() => setActiveTrackingObjectId(obj.id)}
+												className="flex items-center gap-2"
+											>
+												<div
+													className="h-2 w-2 rounded-full"
+													style={{
+														backgroundColor: getTrackingObjectColor(obj.id),
+													}}
+												/>
+												<span className="flex-1">
+													{getTrackingObjectName(obj.id)}
+												</span>
+												{editingObjectId === obj.id ? (
+													<div className="flex items-center gap-1">
+														<Input
+															type="text"
+															value={editName}
+															onChange={(e) => setEditName(e.target.value)}
+															placeholder="Name"
+															className="h-6 w-20 text-xs"
+															onClick={(e) => e.stopPropagation()}
+														/>
+														<Input
+															type="color"
+															value={editColor || '#000000'}
+															onChange={(e) => setEditColor(e.target.value)}
+															className="h-6 w-10"
+															onClick={(e) => e.stopPropagation()}
+														/>
+														<Button
+															size="sm"
+															variant="ghost"
+															onClick={(e) => {
+																e.stopPropagation()
+																handleUpdateTrackingObject(obj.id)
+															}}
+														>
+															<Icon name="check" className="h-3 w-3" />
+														</Button>
+													</div>
+												) : (
+													<Button
+														size="sm"
+														variant="ghost"
+														onClick={(e) => {
+															e.stopPropagation()
+															startEditing(obj)
+														}}
+													>
+														<Icon name="pencil-1" className="h-3 w-3" />
+													</Button>
+												)}
+											</DropdownMenuItem>
+										))
+									)}
+									<DropdownMenuSeparator />
+									<DropdownMenuItem onClick={handleCreateTrackingObject}>
+										<Icon name="plus" className="mr-2 h-4 w-4" />
+										Create New Object
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</div>
 
 					{/* Video Player Container */}
 					<div className="group relative w-full overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-slate-900 shadow-lg">
-						<VideoPlayer
-							src={loaderData.videoSrc}
-							videoId={loaderData.video.id}
-							trackingPoints={loaderData.trackingPoints}
-							scale={loaderData.scale}
-							className="aspect-video"
-							isScaleCalibrationModeExternal={isScaleCalibrationMode}
-							onScaleCalibrationModeChange={setIsScaleCalibrationMode}
-						/>
+					<VideoPlayer
+						src={loaderData.videoSrc}
+						videoId={loaderData.video.id}
+						trackingPoints={loaderData.trackingPoints}
+						trackingObjects={loaderData.trackingObjects}
+						activeTrackingObjectId={activeTrackingObjectId}
+						onActiveTrackingObjectChange={setActiveTrackingObjectId}
+						scale={loaderData.scale}
+						className="aspect-video"
+						isScaleCalibrationModeExternal={isScaleCalibrationMode}
+						onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+					/>
 					</div>
 				</div>
 
@@ -463,28 +792,31 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 									value="position"
 									className="mt-0 flex-1 overflow-hidden"
 								>
-									<PositionVsTimeGraph
-										trackingPoints={loaderData.trackingPoints}
-										scale={loaderData.scale}
-									/>
+								<PositionVsTimeGraph
+									trackingPoints={loaderData.trackingPoints}
+									trackingObjects={loaderData.trackingObjects}
+									scale={loaderData.scale}
+								/>
 								</TabsContent>
 								<TabsContent
 									value="velocity"
 									className="mt-0 flex-1 overflow-hidden"
 								>
-									<VelocityVsTimeGraph
-										trackingPoints={loaderData.trackingPoints}
-										scale={loaderData.scale}
-									/>
+								<VelocityVsTimeGraph
+									trackingPoints={loaderData.trackingPoints}
+									trackingObjects={loaderData.trackingObjects}
+									scale={loaderData.scale}
+								/>
 								</TabsContent>
 								<TabsContent
 									value="acceleration"
 									className="mt-0 flex-1 overflow-hidden"
 								>
-									<AccelerationVsTimeGraph
-										trackingPoints={loaderData.trackingPoints}
-										scale={loaderData.scale}
-									/>
+								<AccelerationVsTimeGraph
+									trackingPoints={loaderData.trackingPoints}
+									trackingObjects={loaderData.trackingObjects}
+									scale={loaderData.scale}
+								/>
 								</TabsContent>
 							</div>
 						</Tabs>
