@@ -68,6 +68,8 @@ export function VideoPlayer({
 	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
 		string | null
 	>(null)
+	// Trajectory path visibility toggle
+	const [showTrajectoryPaths, setShowTrajectoryPaths] = useState(true)
 	// Scale calibration state
 	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
 
@@ -653,22 +655,43 @@ export function VideoPlayer({
 
 			if (pointsToDraw.length === 0) return
 
-			// Draw trajectory line connecting points (if multiple points)
-			if (pointsToDraw.length > 1 && activeTrackingObjectId) {
-				ctx.strokeStyle = '#ff0000'
-				ctx.lineWidth = 2
-				ctx.beginPath()
-				const sortedPoints = [...pointsToDraw].sort((a, b) => a.frame - b.frame)
-				sortedPoints.forEach((point, index) => {
-					const canvasX = point.x * canvasScale + offsetX
-					const canvasY = point.y * canvasScale + offsetY
-					if (index === 0) {
-						ctx.moveTo(canvasX, canvasY)
-					} else {
-						ctx.lineTo(canvasX, canvasY)
-					}
+			// Draw trajectory paths for all tracking objects when toggle is enabled
+			if (showTrajectoryPaths && localTrackingPoints.length > 0) {
+				// Group points by trackingObjectId
+				const pointsByObject = new Map<string, TrackingPoint[]>()
+				localTrackingPoints.forEach((point) => {
+					const existing = pointsByObject.get(point.trackingObjectId) || []
+					pointsByObject.set(point.trackingObjectId, [...existing, point])
 				})
-				ctx.stroke()
+
+				// Draw trajectory line for each tracking object
+				pointsByObject.forEach((objectPoints, trackingObjectId) => {
+					if (objectPoints.length < 2) return // Need at least 2 points for a line
+
+					// Generate a color based on tracking object ID for consistency
+					const hash = trackingObjectId.split('').reduce((acc, char) => {
+						return char.charCodeAt(0) + ((acc << 5) - acc)
+					}, 0)
+					const hue = Math.abs(hash) % 360
+					const trajectoryColor = `hsl(${hue}, 70%, 50%)`
+
+					ctx.strokeStyle = trajectoryColor
+					ctx.lineWidth = 2
+					ctx.beginPath()
+					const sortedPoints = [...objectPoints].sort(
+						(a, b) => a.frame - b.frame,
+					)
+					sortedPoints.forEach((point, index) => {
+						const canvasX = point.x * canvasScale + offsetX
+						const canvasY = point.y * canvasScale + offsetY
+						if (index === 0) {
+							ctx.moveTo(canvasX, canvasY)
+						} else {
+							ctx.lineTo(canvasX, canvasY)
+						}
+					})
+					ctx.stroke()
+				})
 			}
 
 			pointsToDraw.forEach((point) => {
@@ -731,6 +754,7 @@ export function VideoPlayer({
 		isScaleCalibrationMode,
 		scaleStartPoint,
 		scaleEndPoint,
+		showTrajectoryPaths,
 	])
 
 	// Update local tracking points when fetcher returns new data
@@ -921,7 +945,7 @@ export function VideoPlayer({
 				{/* Controls */}
 				<div className="grid grid-cols-3 items-center gap-4">
 					{/* Left spacer or tracking indicator */}
-					<div className="flex items-center">
+					<div className="flex items-center gap-2">
 						{activeTrackingObjectId && (
 							<div
 								className="flex items-center gap-2 rounded-2xl px-3 py-1.5"
@@ -941,6 +965,36 @@ export function VideoPlayer({
 									Tracking: Object {activeTrackingObjectId.slice(-6)}
 								</span>
 							</div>
+						)}
+						{/* Trajectory path toggle */}
+						{localTrackingPoints.length > 0 && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => setShowTrajectoryPaths(!showTrajectoryPaths)}
+								aria-label={
+									showTrajectoryPaths
+										? 'Hide trajectory paths'
+										: 'Show trajectory paths'
+								}
+								title={
+									showTrajectoryPaths
+										? 'Hide trajectory paths'
+										: 'Show trajectory paths'
+								}
+								className={`h-8 rounded-lg border px-3 text-xs transition-all hover:shadow-sm ${
+									showTrajectoryPaths
+										? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+										: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+								}`}
+							>
+								<Icon
+									name="crosshair-2"
+									className="mr-1.5 h-3.5 w-3.5"
+								/>
+								{showTrajectoryPaths ? 'Hide Path' : 'Show Path'}
+							</Button>
 						)}
 					</div>
 					{/* Centered controls */}

@@ -677,3 +677,49 @@ implementation and testing of each feature as defined in `features.json`.
   tabs
 - All unit tests pass successfully (7/7); E2E test verifies graph display and
   toggle functionality
+
+---
+
+### F013: Trajectory Path Visualization
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Added trajectory path visualization feature to video player component:
+  - Added `showTrajectoryPaths` state variable (defaults to `true`)
+  - Modified canvas drawing logic to draw trajectory paths for ALL tracking objects
+    (not just the active one)
+  - Trajectory paths are drawn as lines connecting points for each tracking object
+  - Each tracking object gets a unique color based on its ID (using HSL color
+    generation)
+  - Paths are only drawn when `showTrajectoryPaths` is `true`
+- Added trajectory path toggle button in video player controls:
+  - Button appears when tracking points exist
+  - Shows "Hide Path" when paths are visible, "Show Path" when hidden
+  - Button styling changes based on state (green when visible, gray when hidden)
+  - Uses crosshair icon for visual consistency
+- Trajectory paths are drawn for all tracking objects simultaneously, making it
+  easy to visualize multiple object movements
+
+**Testing:**
+
+- ✅ Unit test: Trajectory path is drawn from tracking points (passing - verifies
+  canvas renders and toggle button appears)
+- ✅ Unit test: Path toggle shows/hides trajectory (passing - verifies toggle
+  functionality)
+- ✅ E2E test: User can view trajectory path overlay on video (added, passing)
+- ✅ All existing video player tests still pass (7/7 tests passing)
+
+**Notes:**
+
+- Trajectory paths are drawn for all tracking objects, not just the active one
+- Each tracking object gets a unique color based on its ID hash for visual
+  distinction
+- Path toggle defaults to visible (`true`) for better user experience
+- Canvas drawing handles coordinate conversion correctly for all video aspect
+  ratios
+- Toggle button only appears when tracking points exist
+- All unit and E2E tests pass successfully

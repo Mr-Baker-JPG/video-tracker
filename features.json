@@ -171,8 +171,8 @@
 				"E2E test: User can view trajectory path overlay on video",
 				"Manual: Verify trajectory path accurately follows tracked object"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F014",

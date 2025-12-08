@@ -443,6 +443,121 @@ test('User can navigate frames and place multiple points', async ({
 	expect(sortedFrames[0]).toBeGreaterThanOrEqual(0)
 })
 
+test('User can view trajectory path overlay on video', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	// First, upload a video
+	await navigate('/videos/new')
+
+	// Use actual video file for more realistic testing
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	// File info should be displayed
+	await expect(page.getByText(videoFileName)).toBeVisible()
+
+	// Click upload submit button
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+
+	// Wait for upload to complete
+	await expect(page).toHaveURL('/videos/new')
+
+	// Wait for video to be stored in database (with retry)
+	let video = null
+	for (let i = 0; i < 20; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+		})
+		if (video) break
+		await page.waitForTimeout(200)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) {
+		throw new Error('Video not found')
+	}
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(
+		page.getByRole('heading', { name: video.filename }),
+	).toBeVisible()
+
+	// Check that video element exists
+	const videoElement = page.getByLabel('Video content')
+	await expect(videoElement).toBeVisible()
+
+	// Wait for video metadata to load
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
+
+	// Wait for canvas to be present
+	const canvas = page.getByLabel(
+		'Tracking canvas - click to place tracking points',
+	)
+	await expect(canvas).toBeVisible()
+
+	// Get canvas dimensions for click coordinates
+	const canvasRect = await canvas.boundingBox()
+	expect(canvasRect).toBeDefined()
+	if (!canvasRect) {
+		throw new Error('Canvas element not found')
+	}
+
+	// Place multiple tracking points to create a trajectory
+	const nextFrameButton = page.getByLabel('Next frame')
+
+	// Place first point
+	await canvas.click({ position: { x: canvasRect.width * 0.4, y: canvasRect.height * 0.5 } })
+	await page.waitForTimeout(500)
+
+	// Navigate to next frame and place second point
+	await nextFrameButton.click()
+	await page.waitForTimeout(200)
+	await canvas.click({ position: { x: canvasRect.width * 0.5, y: canvasRect.height * 0.5 } })
+	await page.waitForTimeout(500)
+
+	// Navigate to next frame and place third point
+	await nextFrameButton.click()
+	await page.waitForTimeout(200)
+	await canvas.click({ position: { x: canvasRect.width * 0.6, y: canvasRect.height * 0.5 } })
+	await page.waitForTimeout(500)
+
+	// Verify trajectory toggle button appears when tracking points exist
+	const toggleButton = page.getByLabel(/show trajectory paths|hide trajectory paths/i)
+	await expect(toggleButton).toBeVisible()
+	await expect(toggleButton).toHaveText('Hide Path')
+
+	// Click to hide trajectory path
+	await toggleButton.click()
+	await expect(toggleButton).toHaveText('Show Path')
+
+	// Click to show trajectory path again
+	await toggleButton.click()
+	await expect(toggleButton).toHaveText('Hide Path')
+
+	// Verify trajectory path is visible (canvas should have been drawn on)
+	// We can't directly verify the canvas drawing in E2E, but we can verify
+	// that the toggle works and the button state changes correctly
+})
+
 test('User can draw a scale line and input distance', async ({
 	page,
 	login,
