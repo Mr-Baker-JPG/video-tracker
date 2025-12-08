@@ -354,11 +354,9 @@ export async function action({ request }: Route.ActionArgs) {
 			},
 		})
 
-		invariantResponse(
-			existingObject,
-			'Tracking object not found',
-			{ status: 404 },
-		)
+		invariantResponse(existingObject, 'Tracking object not found', {
+			status: 404,
+		})
 
 		// Update tracking object
 		const trackingObject = await prisma.trackingObject.update({
@@ -544,7 +542,11 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		setEditColor('')
 	}
 
-	const startEditing = (obj: { id: string; name: string | null; color: string | null }) => {
+	const startEditing = (obj: {
+		id: string
+		name: string | null
+		color: string | null
+	}) => {
 		setEditingObjectId(obj.id)
 		setEditName(obj.name || '')
 		setEditColor(obj.color || '')
@@ -651,7 +653,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 						</div>
 
 						<div className="flex items-center gap-2">
-							<DropdownMenu>
+							<DropdownMenu modal={false}>
 								<DropdownMenuTrigger asChild>
 									<Button variant="outline" size="sm" className="gap-2">
 										{activeTrackingObjectId ? (
@@ -677,7 +679,12 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 										<Icon name="chevron-down" className="h-3 w-3" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end" className="w-56">
+								<DropdownMenuContent
+									align="end"
+									className="w-56"
+									sideOffset={4}
+									alignOffset={0}
+								>
 									<DropdownMenuLabel>Tracking Objects</DropdownMenuLabel>
 									<DropdownMenuSeparator />
 									{loaderData.trackingObjects.length === 0 ? (
@@ -757,18 +764,18 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 
 					{/* Video Player Container */}
 					<div className="group relative w-full overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-slate-900 shadow-lg">
-					<VideoPlayer
-						src={loaderData.videoSrc}
-						videoId={loaderData.video.id}
-						trackingPoints={loaderData.trackingPoints}
-						trackingObjects={loaderData.trackingObjects}
-						activeTrackingObjectId={activeTrackingObjectId}
-						onActiveTrackingObjectChange={setActiveTrackingObjectId}
-						scale={loaderData.scale}
-						className="aspect-video"
-						isScaleCalibrationModeExternal={isScaleCalibrationMode}
-						onScaleCalibrationModeChange={setIsScaleCalibrationMode}
-					/>
+						<VideoPlayer
+							src={loaderData.videoSrc}
+							videoId={loaderData.video.id}
+							trackingPoints={loaderData.trackingPoints}
+							trackingObjects={loaderData.trackingObjects}
+							activeTrackingObjectId={activeTrackingObjectId}
+							onActiveTrackingObjectChange={setActiveTrackingObjectId}
+							scale={loaderData.scale}
+							className="aspect-video"
+							isScaleCalibrationModeExternal={isScaleCalibrationMode}
+							onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+						/>
 					</div>
 				</div>
 
@@ -792,31 +799,31 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 									value="position"
 									className="mt-0 flex-1 overflow-hidden"
 								>
-								<PositionVsTimeGraph
-									trackingPoints={loaderData.trackingPoints}
-									trackingObjects={loaderData.trackingObjects}
-									scale={loaderData.scale}
-								/>
+									<PositionVsTimeGraph
+										trackingPoints={loaderData.trackingPoints}
+										trackingObjects={loaderData.trackingObjects}
+										scale={loaderData.scale}
+									/>
 								</TabsContent>
 								<TabsContent
 									value="velocity"
 									className="mt-0 flex-1 overflow-hidden"
 								>
-								<VelocityVsTimeGraph
-									trackingPoints={loaderData.trackingPoints}
-									trackingObjects={loaderData.trackingObjects}
-									scale={loaderData.scale}
-								/>
+									<VelocityVsTimeGraph
+										trackingPoints={loaderData.trackingPoints}
+										trackingObjects={loaderData.trackingObjects}
+										scale={loaderData.scale}
+									/>
 								</TabsContent>
 								<TabsContent
 									value="acceleration"
 									className="mt-0 flex-1 overflow-hidden"
 								>
-								<AccelerationVsTimeGraph
-									trackingPoints={loaderData.trackingPoints}
-									trackingObjects={loaderData.trackingObjects}
-									scale={loaderData.scale}
-								/>
+									<AccelerationVsTimeGraph
+										trackingPoints={loaderData.trackingPoints}
+										trackingObjects={loaderData.trackingObjects}
+										scale={loaderData.scale}
+									/>
 								</TabsContent>
 							</div>
 						</Tabs>

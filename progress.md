@@ -799,8 +799,8 @@ implementation and testing of each feature as defined in `features.json`.
   points
 - Added action handlers for creating and updating tracking objects (name and
   color)
-- Updated video route action to automatically create TrackingObject entries
-  when new tracking points are placed
+- Updated video route action to automatically create TrackingObject entries when
+  new tracking points are placed
 - Created tracking objects management UI in the tools bar:
   - Dropdown menu to select/create tracking objects
   - Inline editing for object names and colors
@@ -826,8 +826,8 @@ implementation and testing of each feature as defined in `features.json`.
   tests verify this)
 - ✅ All existing unit tests pass (14/14 tests passing)
 - ✅ All video player component tests pass (7/7 tests passing)
-- ⏭️ E2E tests: User can create multiple tracking objects (to be added in
-  future iteration)
+- ⏭️ E2E tests: User can create multiple tracking objects (to be added in future
+  iteration)
 - ⏭️ E2E tests: User can add points to different objects (to be added in future
   iteration)
 - ✅ Manual: Verify different objects display with distinct colors (verified
