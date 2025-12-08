@@ -256,7 +256,11 @@ test('Trajectory path is drawn from tracking points', async () => {
 
 	// Canvas is only rendered when videoId is provided
 	const { container } = renderWithRouter(
-		<VideoPlayer src="/test-video.mp4" videoId="test-video-id" trackingPoints={trackingPoints} />,
+		<VideoPlayer
+			src="/test-video.mp4"
+			videoId="test-video-id"
+			trackingPoints={trackingPoints}
+		/>,
 	)
 
 	await waitFor(() => {
@@ -269,7 +273,9 @@ test('Trajectory path is drawn from tracking points', async () => {
 	expect(canvas).toBeInTheDocument()
 
 	// Verify trajectory toggle button appears when tracking points exist
-	const toggleButton = screen.getByLabelText(/show trajectory paths|hide trajectory paths/i)
+	const toggleButton = screen.getByLabelText(
+		/show trajectory paths|hide trajectory paths/i,
+	)
 	expect(toggleButton).toBeInTheDocument()
 	expect(toggleButton).toHaveTextContent('Hide Path')
 
@@ -326,12 +332,16 @@ test('Path toggle shows/hides trajectory', async () => {
 
 	// Wait for toggle button to appear
 	await waitFor(() => {
-		const toggleButton = screen.getByLabelText(/show trajectory paths|hide trajectory paths/i)
+		const toggleButton = screen.getByLabelText(
+			/show trajectory paths|hide trajectory paths/i,
+		)
 		expect(toggleButton).toBeInTheDocument()
 	})
 
 	// Initially, path should be shown (default state)
-	const toggleButton = screen.getByLabelText(/show trajectory paths|hide trajectory paths/i)
+	const toggleButton = screen.getByLabelText(
+		/show trajectory paths|hide trajectory paths/i,
+	)
 	expect(toggleButton).toHaveTextContent('Hide Path')
 
 	// Click to hide path

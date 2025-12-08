@@ -525,23 +525,31 @@ test('User can view trajectory path overlay on video', async ({
 	const nextFrameButton = page.getByLabel('Next frame')
 
 	// Place first point
-	await canvas.click({ position: { x: canvasRect.width * 0.4, y: canvasRect.height * 0.5 } })
+	await canvas.click({
+		position: { x: canvasRect.width * 0.4, y: canvasRect.height * 0.5 },
+	})
 	await page.waitForTimeout(500)
 
 	// Navigate to next frame and place second point
 	await nextFrameButton.click()
 	await page.waitForTimeout(200)
-	await canvas.click({ position: { x: canvasRect.width * 0.5, y: canvasRect.height * 0.5 } })
+	await canvas.click({
+		position: { x: canvasRect.width * 0.5, y: canvasRect.height * 0.5 },
+	})
 	await page.waitForTimeout(500)
 
 	// Navigate to next frame and place third point
 	await nextFrameButton.click()
 	await page.waitForTimeout(200)
-	await canvas.click({ position: { x: canvasRect.width * 0.6, y: canvasRect.height * 0.5 } })
+	await canvas.click({
+		position: { x: canvasRect.width * 0.6, y: canvasRect.height * 0.5 },
+	})
 	await page.waitForTimeout(500)
 
 	// Verify trajectory toggle button appears when tracking points exist
-	const toggleButton = page.getByLabel(/show trajectory paths|hide trajectory paths/i)
+	const toggleButton = page.getByLabel(
+		/show trajectory paths|hide trajectory paths/i,
+	)
 	await expect(toggleButton).toBeVisible()
 	await expect(toggleButton).toHaveText('Hide Path')
 
@@ -1127,4 +1135,259 @@ test('User can view acceleration vs time graph', async ({
 	// X should be selected again
 	await expect(xAxisButton).toHaveAttribute('data-state', 'active')
 	await expect(yAxisButton).toHaveAttribute('data-state', 'inactive')
+})
+
+test('User can save a tracking session', async ({ page, navigate, login }) => {
+	const user = await login()
+
+	// Upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
+
+	// Wait for video element and metadata
+	const videoElement = page.getByLabel('Video content')
+	await expect(videoElement).toBeVisible()
+
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
+
+	// Place tracking points (automatically saves to database)
+	const canvas = page.getByLabel(
+		'Tracking canvas - click to place tracking points',
+	)
+	await expect(canvas).toBeVisible()
+
+	const canvasRect = await canvas.boundingBox()
+	expect(canvasRect).toBeDefined()
+	if (!canvasRect) throw new Error('Canvas not found')
+
+	// Place first tracking point
+	await canvas.click({
+		position: { x: canvasRect.width * 0.4, y: canvasRect.height * 0.5 },
+	})
+	await page.waitForTimeout(500)
+
+	// Navigate to next frame and place second point
+	const nextFrameButton = page.getByLabel('Next frame')
+	await nextFrameButton.click()
+	await page.waitForTimeout(200)
+
+	await canvas.click({
+		position: { x: canvasRect.width * 0.5, y: canvasRect.height * 0.5 },
+	})
+	await page.waitForTimeout(500)
+
+	// Set scale calibration (automatically saves to database)
+	const setScaleButton = page.getByRole('button', { name: /set scale/i })
+	await setScaleButton.click()
+
+	await expect(
+		page.getByText(/click on the video to set the start point/i),
+	).toBeVisible()
+
+	await canvas.click({
+		position: { x: canvasRect.width * 0.2, y: canvasRect.height * 0.5 },
+	})
+	await page.waitForTimeout(300)
+
+	await expect(
+		page.getByText(/click on the video to set the end point/i),
+	).toBeVisible()
+
+	await canvas.click({
+		position: { x: canvasRect.width * 0.8, y: canvasRect.height * 0.5 },
+	})
+	await page.waitForTimeout(300)
+
+	const distanceInput = page.getByLabel(/distance \(meters\)/i)
+	await expect(distanceInput).toBeVisible()
+	await distanceInput.fill('1.0')
+
+	const saveScaleButton = page.getByRole('button', { name: /save scale/i })
+	await saveScaleButton.click()
+	await page.waitForTimeout(500)
+
+	// Verify tracking session data is saved in database
+	const trackingPoints = await prisma.trackingPoint.findMany({
+		where: { videoId: video.id },
+	})
+
+	expect(trackingPoints.length).toBeGreaterThanOrEqual(2)
+
+	const scale = await prisma.videoScale.findUnique({
+		where: { videoId: video.id },
+	})
+
+	expect(scale).toBeDefined()
+	expect(scale?.distanceMeters).toBe(1.0)
+	expect(scale?.pixelsPerMeter).toBeGreaterThan(0)
+})
+
+test('User can load a saved tracking session', async ({ page, navigate, login }) => {
+	const user = await login()
+
+	// Upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Save a tracking session directly to database (simulating previous save)
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 100,
+				y: 200,
+				trackingObjectId: 'obj_load_test_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 150,
+				y: 250,
+				trackingObjectId: 'obj_load_test_1',
+			},
+			{
+				videoId: video.id,
+				frame: 60,
+				x: 200,
+				y: 300,
+				trackingObjectId: 'obj_load_test_1',
+			},
+		],
+	})
+
+	await prisma.videoScale.create({
+		data: {
+			videoId: video.id,
+			startX: 0,
+			startY: 0,
+			endX: 100,
+			endY: 0,
+			distanceMeters: 1.0,
+			pixelsPerMeter: 100,
+		},
+	})
+
+	// Navigate to video player page (this loads the session)
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
+
+	// Wait for video element and metadata
+	const videoElement = page.getByLabel('Video content')
+	await expect(videoElement).toBeVisible()
+
+	await expect(async () => {
+		const duration = await videoElement.evaluate(
+			(el) => (el as HTMLVideoElement).duration,
+		)
+		expect(duration).toBeGreaterThan(0)
+		expect(Number.isFinite(duration)).toBe(true)
+	}).toPass({ timeout: 10000 })
+
+	// Verify tracking points are displayed (loaded from database)
+	// Check that data points table shows the loaded points
+	const dataPointsTable = page.locator('text=Data Points').locator('..')
+	await expect(dataPointsTable).toBeVisible()
+
+	// Wait a bit for data to load
+	await page.waitForTimeout(500)
+
+	// Verify scale information is displayed (loaded from database)
+	await expect(page.getByText(/distance: 1\.0 m/i)).toBeVisible({
+		timeout: 2000,
+	})
+
+	// Verify tracking points appear in the data table
+	// The table should show at least 3 points (we created 3)
+	const pointCount = page.locator('text=pts')
+	await expect(pointCount).toBeVisible()
+	await expect(pointCount).toContainText('3')
+
+	// Verify trajectory paths are visible (loaded tracking points create paths)
+	const canvas = page.getByLabel(
+		'Tracking canvas - click to place tracking points',
+	)
+	await expect(canvas).toBeVisible()
+
+	// The trajectory toggle should be available since we have tracking points
+	const toggleButton = page.getByLabel(
+		/show trajectory paths|hide trajectory paths/i,
+	)
+	await expect(toggleButton).toBeVisible()
+
+	// Verify graphs can display the loaded data
+	// Position graph should be visible with data
+	const positionTab = page.getByRole('tab', { name: /position/i })
+	await expect(positionTab).toBeVisible()
+
+	// The graph should show the loaded tracking data
+	// We can't directly verify the graph content, but we can verify the graph container exists
+	const graphContainer = page.locator('text=Analysis Graph').locator('..')
+	await expect(graphContainer).toBeVisible()
 })

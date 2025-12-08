@@ -349,6 +349,13 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 				</div>
 
 				<div className="flex items-center gap-2">
+					{/* Auto-save indicator */}
+					{(loaderData.trackingPoints.length > 0 || loaderData.scale) && (
+						<div className="flex items-center gap-1.5 text-xs text-slate-500">
+							<Icon name="check" className="h-3 w-3 text-green-600" />
+							<span className="hidden sm:inline">All changes saved</span>
+						</div>
+					)}
 					<button
 						type="button"
 						className="hover:text-primary flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors"

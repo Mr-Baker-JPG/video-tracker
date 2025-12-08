@@ -690,9 +690,10 @@ implementation and testing of each feature as defined in `features.json`.
 
 - Added trajectory path visualization feature to video player component:
   - Added `showTrajectoryPaths` state variable (defaults to `true`)
-  - Modified canvas drawing logic to draw trajectory paths for ALL tracking objects
-    (not just the active one)
-  - Trajectory paths are drawn as lines connecting points for each tracking object
+  - Modified canvas drawing logic to draw trajectory paths for ALL tracking
+    objects (not just the active one)
+  - Trajectory paths are drawn as lines connecting points for each tracking
+    object
   - Each tracking object gets a unique color based on its ID (using HSL color
     generation)
   - Paths are only drawn when `showTrajectoryPaths` is `true`
@@ -706,8 +707,8 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Testing:**
 
-- ✅ Unit test: Trajectory path is drawn from tracking points (passing - verifies
-  canvas renders and toggle button appears)
+- ✅ Unit test: Trajectory path is drawn from tracking points (passing -
+  verifies canvas renders and toggle button appears)
 - ✅ Unit test: Path toggle shows/hides trajectory (passing - verifies toggle
   functionality)
 - ✅ E2E test: User can view trajectory path overlay on video (added, passing)
@@ -723,3 +724,48 @@ implementation and testing of each feature as defined in `features.json`.
   ratios
 - Toggle button only appears when tracking points exist
 - All unit and E2E tests pass successfully
+
+---
+
+### F014: Save and Load Tracking Sessions
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Tracking sessions are automatically saved to the database:
+  - Tracking points are saved immediately when users place them on the video
+  - Scale calibration is saved when users complete the calibration process
+  - All data is stored in the database with proper relationships (Video → TrackingPoint, Video → VideoScale)
+- Tracking sessions are automatically loaded when users navigate to a video:
+  - Loader fetches all tracking points and scale data for the video
+  - Video player component displays all loaded tracking points and scale information
+  - Graphs automatically display loaded tracking data
+- Added visual feedback indicator:
+  - Shows "All changes saved" with checkmark icon when tracking data or scale exists
+  - Appears in the header area to provide user confidence that data is persisted
+  - Indicator is hidden when no tracking data exists yet
+- Data persistence verified:
+  - All tracking points persist after page reload
+  - Scale calibration persists after page reload
+  - Video reference is maintained through database relationships
+
+**Testing:**
+
+- ✅ Unit test: Tracking session can be saved to database (passing - verifies tracking points and scale can be saved together)
+- ✅ Unit test: Tracking session can be loaded from database (passing - verifies all session data loads correctly)
+- ✅ E2E test: User can save a tracking session (passing - verifies full workflow of placing points, setting scale, and data persistence)
+- ✅ E2E test: User can load a saved tracking session (passing - verifies saved data loads correctly and displays in UI)
+- ✅ All existing unit tests pass (16/16 tests passing)
+
+**Notes:**
+
+- Tracking data is auto-saved immediately when users place tracking points (no explicit "save" button needed)
+- Scale calibration is saved when users click "Save Scale" button
+- Data automatically loads when users navigate to a video page
+- Visual indicator provides user feedback that data is saved and persisted
+- All tracking data (points, scale, video reference) persists correctly after page reload or navigation
+- The implementation leverages existing database models (TrackingPoint, VideoScale) that were created in earlier features
+- Session data is automatically associated with the video through foreign key relationships

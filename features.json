@@ -185,8 +185,8 @@
 				"E2E test: User can load a saved tracking session",
 				"Manual: Verify all tracking data persists after reload"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F015",

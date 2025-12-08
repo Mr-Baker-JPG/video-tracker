@@ -657,3 +657,209 @@ test('Export action includes meter conversions when scale exists', async () => {
 	)
 	expect(csv).toContain('obj1,0,0.000000,100.00,200.00,1.000000,2.000000')
 })
+
+test('Tracking session can be saved to database', async () => {
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: createUser(),
+	})
+
+	const video = await prisma.video.create({
+		data: {
+			filename: 'test-video.mp4',
+			url: 'users/test/videos/test-key.mp4',
+			userId: user.id,
+		},
+	})
+
+	// Create tracking points (simulating a tracking session)
+	const trackingPoints = await Promise.all([
+		prisma.trackingPoint.create({
+			data: {
+				videoId: video.id,
+				frame: 0,
+				x: 100,
+				y: 200,
+				trackingObjectId: 'obj_session_1',
+			},
+		}),
+		prisma.trackingPoint.create({
+			data: {
+				videoId: video.id,
+				frame: 30,
+				x: 150,
+				y: 250,
+				trackingObjectId: 'obj_session_1',
+			},
+		}),
+		prisma.trackingPoint.create({
+			data: {
+				videoId: video.id,
+				frame: 60,
+				x: 200,
+				y: 300,
+				trackingObjectId: 'obj_session_1',
+			},
+		}),
+	])
+
+	// Create scale calibration (part of tracking session)
+	const scale = await prisma.videoScale.create({
+		data: {
+			videoId: video.id,
+			startX: 0,
+			startY: 0,
+			endX: 100,
+			endY: 0,
+			distanceMeters: 1.0,
+			pixelsPerMeter: 100,
+		},
+	})
+
+	// Verify all session data is saved
+	expect(trackingPoints).toHaveLength(3)
+	expect(scale).toBeDefined()
+	expect(scale.videoId).toBe(video.id)
+
+	// Verify all tracking points are associated with the video
+	const savedPoints = await prisma.trackingPoint.findMany({
+		where: { videoId: video.id },
+		orderBy: { frame: 'asc' },
+	})
+
+	expect(savedPoints).toHaveLength(3)
+	expect(savedPoints[0].frame).toBe(0)
+	expect(savedPoints[1].frame).toBe(30)
+	expect(savedPoints[2].frame).toBe(60)
+	expect(savedPoints[0].trackingObjectId).toBe('obj_session_1')
+	expect(savedPoints[1].trackingObjectId).toBe('obj_session_1')
+	expect(savedPoints[2].trackingObjectId).toBe('obj_session_1')
+
+	// Verify scale is saved
+	const savedScale = await prisma.videoScale.findUnique({
+		where: { videoId: video.id },
+	})
+
+	expect(savedScale).toBeDefined()
+	expect(savedScale?.videoId).toBe(video.id)
+	expect(savedScale?.distanceMeters).toBe(1.0)
+	expect(savedScale?.pixelsPerMeter).toBe(100)
+})
+
+test('Tracking session can be loaded from database', async () => {
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: createUser(),
+	})
+
+	const video = await prisma.video.create({
+		data: {
+			filename: 'test-video.mp4',
+			url: 'users/test/videos/test-key.mp4',
+			userId: user.id,
+		},
+	})
+
+	// Save a tracking session (simulating previous save)
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 100,
+				y: 200,
+				trackingObjectId: 'obj_load_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 150,
+				y: 250,
+				trackingObjectId: 'obj_load_1',
+			},
+			{
+				videoId: video.id,
+				frame: 60,
+				x: 200,
+				y: 300,
+				trackingObjectId: 'obj_load_2',
+			},
+		],
+	})
+
+	await prisma.videoScale.create({
+		data: {
+			videoId: video.id,
+			startX: 50,
+			startY: 50,
+			endX: 150,
+			endY: 50,
+			distanceMeters: 2.0,
+			pixelsPerMeter: 50,
+		},
+	})
+
+	// Load the tracking session (simulating page load)
+	const loadedVideo = await prisma.video.findUnique({
+		where: { id: video.id },
+		select: {
+			id: true,
+			filename: true,
+			url: true,
+			userId: true,
+		},
+	})
+
+	expect(loadedVideo).toBeDefined()
+	expect(loadedVideo?.id).toBe(video.id)
+
+	const loadedTrackingPoints = await prisma.trackingPoint.findMany({
+		where: { videoId: video.id },
+		select: {
+			id: true,
+			frame: true,
+			x: true,
+			y: true,
+			trackingObjectId: true,
+		},
+		orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
+	})
+
+	const loadedScale = await prisma.videoScale.findUnique({
+		where: { videoId: video.id },
+		select: {
+			id: true,
+			startX: true,
+			startY: true,
+			endX: true,
+			endY: true,
+			distanceMeters: true,
+			pixelsPerMeter: true,
+		},
+	})
+
+	// Verify all session data is loaded correctly
+	expect(loadedTrackingPoints).toHaveLength(3)
+	expect(loadedTrackingPoints[0].frame).toBe(0)
+	expect(loadedTrackingPoints[0].x).toBe(100)
+	expect(loadedTrackingPoints[0].y).toBe(200)
+	expect(loadedTrackingPoints[0].trackingObjectId).toBe('obj_load_1')
+
+	expect(loadedTrackingPoints[1].frame).toBe(30)
+	expect(loadedTrackingPoints[1].x).toBe(150)
+	expect(loadedTrackingPoints[1].y).toBe(250)
+	expect(loadedTrackingPoints[1].trackingObjectId).toBe('obj_load_1')
+
+	expect(loadedTrackingPoints[2].frame).toBe(60)
+	expect(loadedTrackingPoints[2].x).toBe(200)
+	expect(loadedTrackingPoints[2].y).toBe(300)
+	expect(loadedTrackingPoints[2].trackingObjectId).toBe('obj_load_2')
+
+	expect(loadedScale).toBeDefined()
+	expect(loadedScale?.startX).toBe(50)
+	expect(loadedScale?.startY).toBe(50)
+	expect(loadedScale?.endX).toBe(150)
+	expect(loadedScale?.endY).toBe(50)
+	expect(loadedScale?.distanceMeters).toBe(2.0)
+	expect(loadedScale?.pixelsPerMeter).toBe(50)
+})

@@ -989,10 +989,7 @@ export function VideoPlayer({
 										: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
 								}`}
 							>
-								<Icon
-									name="crosshair-2"
-									className="mr-1.5 h-3.5 w-3.5"
-								/>
+								<Icon name="crosshair-2" className="mr-1.5 h-3.5 w-3.5" />
 								{showTrajectoryPaths ? 'Hide Path' : 'Show Path'}
 							</Button>
 						)}
