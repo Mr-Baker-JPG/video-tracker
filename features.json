@@ -158,8 +158,8 @@
 				"E2E test: User can view acceleration vs time graph",
 				"Manual: Verify acceleration graph shows expected physics behavior"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F013",

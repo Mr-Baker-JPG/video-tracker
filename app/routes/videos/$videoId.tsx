@@ -3,6 +3,7 @@ import { invariantResponse } from '@epic-web/invariant'
 import { useState } from 'react'
 import { data, Link } from 'react-router'
 import { z } from 'zod'
+import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -444,9 +445,10 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								<h3 className="text-sm font-semibold text-slate-800">
 									Analysis Graph
 								</h3>
-								<TabsList className="grid w-auto grid-cols-2">
+								<TabsList className="grid w-auto grid-cols-3">
 									<TabsTrigger value="position">Position</TabsTrigger>
 									<TabsTrigger value="velocity">Velocity</TabsTrigger>
+									<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
 								</TabsList>
 							</div>
 							<div className="flex-1 p-4">
@@ -464,6 +466,15 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 									className="mt-0 flex-1 overflow-hidden"
 								>
 									<VelocityVsTimeGraph
+										trackingPoints={loaderData.trackingPoints}
+										scale={loaderData.scale}
+									/>
+								</TabsContent>
+								<TabsContent
+									value="acceleration"
+									className="mt-0 flex-1 overflow-hidden"
+								>
+									<AccelerationVsTimeGraph
 										trackingPoints={loaderData.trackingPoints}
 										scale={loaderData.scale}
 									/>

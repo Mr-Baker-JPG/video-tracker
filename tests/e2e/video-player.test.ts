@@ -907,3 +907,109 @@ test('User can view velocity vs time graph', async ({
 	await expect(xAxisButton).toHaveClass(/bg-primary/)
 	await expect(yAxisButton).not.toHaveClass(/bg-primary/)
 })
+
+test('User can view acceleration vs time graph', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	const user = await login()
+
+	// Upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Create tracking points directly in database
+	// These points represent an object with changing velocity (acceleration)
+	// Frame 0: x=100, Frame 30: x=150 (50 pixels in 1 second = 50 pixels/s)
+	// Frame 60: x=250 (100 pixels in 1 second = 100 pixels/s)
+	// Acceleration from 50 px/s to 100 px/s in 1 second = 50 px/s²
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 100,
+				y: 200,
+				trackingObjectId: 'obj_acceleration_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 150,
+				y: 250,
+				trackingObjectId: 'obj_acceleration_1',
+			},
+			{
+				videoId: video.id,
+				frame: 60,
+				x: 250,
+				y: 300,
+				trackingObjectId: 'obj_acceleration_1',
+			},
+		],
+	})
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
+
+	// Click on the Acceleration tab
+	const accelerationTab = page.getByRole('tab', { name: /acceleration/i })
+	await expect(accelerationTab).toBeVisible()
+	await accelerationTab.click()
+
+	// Wait for acceleration graph to be visible
+	// The graph should have axis toggle tabs
+	const xAxisButton = page.getByRole('tab', { name: /x axis/i })
+	const yAxisButton = page.getByRole('tab', { name: /y axis/i })
+
+	await expect(xAxisButton).toBeVisible()
+	await expect(yAxisButton).toBeVisible()
+
+	// Test X/Y toggle functionality
+	// Initially X should be selected (default)
+	await expect(xAxisButton).toHaveAttribute('data-state', 'active')
+
+	// Click Y axis button
+	await yAxisButton.click()
+
+	// Y should now be selected
+	await expect(yAxisButton).toHaveAttribute('data-state', 'active')
+	await expect(xAxisButton).toHaveAttribute('data-state', 'inactive')
+
+	// Click X axis button again
+	await xAxisButton.click()
+
+	// X should be selected again
+	await expect(xAxisButton).toHaveAttribute('data-state', 'active')
+	await expect(yAxisButton).toHaveAttribute('data-state', 'inactive')
+})

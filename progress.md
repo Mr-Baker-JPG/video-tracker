@@ -619,3 +619,59 @@ implementation and testing of each feature as defined in `features.json`.
 - ✅ Fixed velocity graph tests: Updated to use Tabs component instead of
   buttons, removed checks for commented-out title
 - ✅ All component tests now passing (18/18 tests)
+
+---
+
+### F012: Acceleration Calculation and Graph
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Created `AccelerationVsTimeGraph` component in
+  `app/components/acceleration-vs-time-graph.tsx` with:
+  - Acceleration calculation function using a = Δv/Δt
+  - First calculates velocity from position data, then acceleration from velocity
+  - Edge case handling:
+    - First frame: uses forward difference
+    - Last frame: uses backward difference
+    - Middle frames: uses forward difference
+  - Support for X/Y axis toggle (similar to position and velocity graphs)
+  - Automatic conversion to m/s² when scale is available
+  - Support for multiple tracking objects with different colors
+  - Empty state message when no tracking data exists
+- Integrated acceleration graph into video route (`/videos/$videoId`) as a third
+  tab alongside Position and Velocity graphs
+- Graph displays acceleration data grouped by tracking object with separate lines
+  for each object
+- Y-axis label updates dynamically based on selected axis (X or Y) and scale
+  availability
+
+**Testing:**
+
+- ✅ Unit test: Acceleration calculation is correct for sample data (passing)
+- ✅ Unit test: Acceleration handles edge cases (first/last frames) (passing)
+- ✅ Unit test: Acceleration converts to m/s² when scale is available (passing)
+- ✅ Unit test: Graph component receives and displays tracking data (passing)
+- ✅ Unit test: X/Y toggle switches graph axes correctly (passing)
+- ✅ Unit test: Graph component shows empty state when no tracking data
+  (passing)
+- ✅ Unit test: Graph handles multiple tracking objects (passing)
+- ✅ E2E test: User can view acceleration vs time graph (added to
+  video-player.test.ts, passing)
+
+**Notes:**
+
+- Acceleration calculation uses forward difference for all frames except the last
+  (which uses backward difference), consistent with velocity calculation approach
+- Single point tracking results in acceleration of 0 (no change in velocity)
+- Graph uses same styling and tick generation logic as velocity graph for
+  consistency
+- Acceleration is calculated in pixels/s² when no scale is available, and
+  converted to m/s² when scale calibration is set
+- Acceleration tab added to Analysis Graph section with Position and Velocity
+  tabs
+- All unit tests pass successfully (7/7); E2E test verifies graph display and
+  toggle functionality
