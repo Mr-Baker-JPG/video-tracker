@@ -633,7 +633,8 @@ implementation and testing of each feature as defined in `features.json`.
 - Created `AccelerationVsTimeGraph` component in
   `app/components/acceleration-vs-time-graph.tsx` with:
   - Acceleration calculation function using a = Δv/Δt
-  - First calculates velocity from position data, then acceleration from velocity
+  - First calculates velocity from position data, then acceleration from
+    velocity
   - Edge case handling:
     - First frame: uses forward difference
     - Last frame: uses backward difference
@@ -644,8 +645,8 @@ implementation and testing of each feature as defined in `features.json`.
   - Empty state message when no tracking data exists
 - Integrated acceleration graph into video route (`/videos/$videoId`) as a third
   tab alongside Position and Velocity graphs
-- Graph displays acceleration data grouped by tracking object with separate lines
-  for each object
+- Graph displays acceleration data grouped by tracking object with separate
+  lines for each object
 - Y-axis label updates dynamically based on selected axis (X or Y) and scale
   availability
 
@@ -664,8 +665,9 @@ implementation and testing of each feature as defined in `features.json`.
 
 **Notes:**
 
-- Acceleration calculation uses forward difference for all frames except the last
-  (which uses backward difference), consistent with velocity calculation approach
+- Acceleration calculation uses forward difference for all frames except the
+  last (which uses backward difference), consistent with velocity calculation
+  approach
 - Single point tracking results in acceleration of 0 (no change in velocity)
 - Graph uses same styling and tick generation logic as velocity graph for
   consistency

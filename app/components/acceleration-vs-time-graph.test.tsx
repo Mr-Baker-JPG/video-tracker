@@ -19,7 +19,9 @@ test('Graph component receives and displays tracking data', () => {
 		{ frame: 60, x: 200, y: 300, trackingObjectId: 'obj1' },
 	]
 
-	render(<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+	)
 
 	// Check that axis toggle tabs are present (using Tabs component)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
@@ -49,7 +51,9 @@ test('X/Y toggle switches graph axes correctly', async () => {
 		{ frame: 30, x: 150, y: 250, trackingObjectId: 'obj1' },
 	]
 
-	render(<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+	)
 
 	// Initially X axis should be selected (default)
 	const xTab = screen.getByRole('tab', { name: /x axis/i })
@@ -85,7 +89,9 @@ test('Acceleration calculation is correct for sample data', () => {
 		// Acceleration from 50 px/s to 100 px/s in 1 second = 50 px/s²
 	]
 
-	render(<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+	)
 
 	// Graph should render - check that tabs are present
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
@@ -122,7 +128,9 @@ test('Acceleration handles edge cases', () => {
 		{ frame: 60, x: 200, y: 300, trackingObjectId: 'obj1' },
 	]
 
-	render(<AccelerationVsTimeGraph trackingPoints={multiplePoints} scale={null} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={multiplePoints} scale={null} />,
+	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 })
 
@@ -134,7 +142,9 @@ test('Acceleration converts to m/s² when scale is available', () => {
 	]
 	const scale = { pixelsPerMeter: 100 } // 100 pixels = 1 meter
 
-	render(<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={scale} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={scale} />,
+	)
 
 	// Graph should render with scale data
 	// The component should handle scale conversion internally
@@ -151,7 +161,9 @@ test('Graph handles multiple tracking objects', () => {
 		{ frame: 30, x: 75, y: 125, trackingObjectId: 'obj2' },
 	]
 
-	render(<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+	)
 
 	// Graph should render with multiple objects
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()

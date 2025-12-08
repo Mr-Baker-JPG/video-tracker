@@ -48,7 +48,8 @@ function calculateVelocity(
 		return [{ time, velocity: 0, frame: firstPoint.frame }]
 	}
 
-	const velocities: Array<{ time: number; velocity: number; frame: number }> = []
+	const velocities: Array<{ time: number; velocity: number; frame: number }> =
+		[]
 
 	// Sort points by frame to ensure correct order
 	const sortedPoints = [...points].sort((a, b) => a.frame - b.frame)
