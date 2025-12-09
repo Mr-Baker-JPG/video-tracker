@@ -81,7 +81,6 @@ export function UserDropdown() {
 							</button>
 						</DropdownMenuItem>
 					</Form>
-					{/* Add theme switcher */}
 					<DropdownMenuItem asChild>
 						<ThemeSwitch asDropdownItem={true} />
 					</DropdownMenuItem>

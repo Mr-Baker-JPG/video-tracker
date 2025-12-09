@@ -106,7 +106,11 @@ export function ThemeSwitch({
 
 	if (asDropdownItem) {
 		return (
-			<button type="button" onClick={handleClick} className="w-full">
+			<button
+				type="button"
+				onClick={handleClick}
+				className="w-full py-1 pl-2 text-left text-sm"
+			>
 				{modeLabel[mode]}
 			</button>
 		)
