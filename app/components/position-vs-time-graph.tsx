@@ -13,6 +13,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
 import { exportGraphAsPNG } from '#app/utils/graph-export.tsx'
+import { transformToAxisCoordinates } from '#app/utils/coordinate-transform.ts'
 
 interface TrackingPoint {
 	frame: number
@@ -25,6 +26,12 @@ interface Scale {
 	pixelsPerMeter: number
 }
 
+interface Axis {
+	originX: number
+	originY: number
+	rotationAngle: number
+}
+
 interface TrackingObject {
 	id: string
 	name: string | null
@@ -35,6 +42,7 @@ interface PositionVsTimeGraphProps {
 	trackingPoints: TrackingPoint[]
 	trackingObjects?: TrackingObject[]
 	scale: Scale | null
+	axis: Axis | null
 }
 
 const FPS = 30 // Frames per second for time calculation
@@ -45,6 +53,7 @@ export function PositionVsTimeGraph({
 	trackingPoints,
 	trackingObjects = [],
 	scale,
+	axis,
 }: PositionVsTimeGraphProps) {
 	const graphContainerRef = useRef<HTMLDivElement>(null)
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
@@ -89,13 +98,23 @@ export function PositionVsTimeGraph({
 					timeMap.set(time, { time })
 				}
 				const dataPoint = timeMap.get(time)!
-				// Store both x and y for each object
-				dataPoint[`${objectId}_x`] = point.x
-				dataPoint[`${objectId}_y`] = point.y
+				
+				// Transform coordinates if axis is configured
+				let x = point.x
+				let y = point.y
+				if (axis) {
+					const transformed = transformToAxisCoordinates(point.x, point.y, axis)
+					x = transformed.x
+					y = transformed.y
+				}
+				
+				// Store both x and y for each object (using transformed coordinates if axis is set)
+				dataPoint[`${objectId}_x`] = x
+				dataPoint[`${objectId}_y`] = y
 				// If scale is available, also store meter values
 				if (scale) {
-					dataPoint[`${objectId}_x_meters`] = point.x / scale.pixelsPerMeter
-					dataPoint[`${objectId}_y_meters`] = point.y / scale.pixelsPerMeter
+					dataPoint[`${objectId}_x_meters`] = x / scale.pixelsPerMeter
+					dataPoint[`${objectId}_y_meters`] = y / scale.pixelsPerMeter
 				}
 			}
 		}
@@ -104,7 +123,7 @@ export function PositionVsTimeGraph({
 		return Array.from(timeMap.values()).sort(
 			(a, b) => (a.time ?? 0) - (b.time ?? 0),
 		)
-	}, [trackingPoints, scale])
+	}, [trackingPoints, scale, axis])
 
 	// Generate line components for each tracking object
 	const lines = useMemo(() => {

@@ -431,7 +431,7 @@ test('Export function generates correct CSV format', () => {
 		{ frame: 60, x: 200.0, y: 300.0, trackingObjectId: 'obj2' },
 	]
 
-	const csv = generateTrackingDataCSV(trackingPoints, null)
+		const csv = generateTrackingDataCSV(trackingPoints, null, null)
 
 	// Check that CSV has header row
 	expect(csv).toContain('trackingObjectId')
@@ -459,7 +459,7 @@ test('CSV includes all required columns', () => {
 	]
 
 	// Test without scale
-	const csvWithoutScale = generateTrackingDataCSV(trackingPoints, null)
+	const csvWithoutScale = generateTrackingDataCSV(trackingPoints, null, null)
 	const linesWithoutScale = csvWithoutScale.split('\n')
 	const headerWithoutScale = linesWithoutScale[0].split(',')
 
@@ -473,7 +473,7 @@ test('CSV includes all required columns', () => {
 
 	// Test with scale
 	const scale = { pixelsPerMeter: 100 }
-	const csvWithScale = generateTrackingDataCSV(trackingPoints, scale)
+		const csvWithScale = generateTrackingDataCSV(trackingPoints, scale, null)
 	const linesWithScale = csvWithScale.split('\n')
 	const headerWithScale = linesWithScale[0].split(',')
 
@@ -495,7 +495,7 @@ test('CSV includes meter conversions when scale is set', () => {
 	]
 
 	const scale = { pixelsPerMeter: 100 } // 100 pixels = 1 meter
-	const csv = generateTrackingDataCSV(trackingPoints, scale)
+		const csv = generateTrackingDataCSV(trackingPoints, scale, null)
 
 	const lines = csv.split('\n')
 	expect(lines.length).toBe(3) // 1 header + 2 data rows
@@ -585,7 +585,7 @@ test('Export action returns CSV file for valid video', async () => {
 		orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
 	})
 
-	const csv = generateTrackingDataCSV(trackingPoints, null)
+		const csv = generateTrackingDataCSV(trackingPoints, null, null)
 
 	expect(csv).toContain(
 		'trackingObjectId,frame,time (seconds),x (pixels),y (pixels)',
@@ -650,7 +650,7 @@ test('Export action includes meter conversions when scale exists', async () => {
 		},
 	})
 
-	const csv = generateTrackingDataCSV(trackingPoints, scale)
+		const csv = generateTrackingDataCSV(trackingPoints, scale, null)
 
 	expect(csv).toContain(
 		'trackingObjectId,frame,time (seconds),x (pixels),y (pixels),x (meters),y (meters)',

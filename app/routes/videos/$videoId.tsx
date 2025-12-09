@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
 import { data, useFetcher, useRevalidator } from 'react-router'
 import { z } from 'zod'
+import { requireUserId } from '#app/utils/auth.server.ts'
+import { transformToAxisCoordinates } from '#app/utils/coordinate-transform.ts'
 import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
 import {
@@ -63,6 +65,14 @@ const SaveScaleSchema = z.object({
 	endX: z.coerce.number().min(0),
 	endY: z.coerce.number().min(0),
 	distanceMeters: z.coerce.number().positive(),
+})
+
+const SaveAxisSchema = z.object({
+	intent: z.literal('save-axis'),
+	videoId: z.string(),
+	originX: z.coerce.number().min(0),
+	originY: z.coerce.number().min(0),
+	rotationAngle: z.coerce.number(), // In radians
 })
 
 const CreateTrackingObjectSchema = z.object({
@@ -148,6 +158,16 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 		},
 	})
 
+	const axis = await prisma.videoAxis.findUnique({
+		where: { videoId: video.id },
+		select: {
+			id: true,
+			originX: true,
+			originY: true,
+			rotationAngle: true,
+		},
+	})
+
 	const videoSrc = getVideoSrc(video.url)
 
 	const activeTrackingObjectId = await getActiveTrackingObjectId(
@@ -161,6 +181,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 		trackingPoints,
 		trackingObjects,
 		scale,
+		axis,
 		activeTrackingObjectId,
 	}
 }
@@ -173,9 +194,12 @@ export function generateTrackingDataCSV(
 		trackingObjectId: string
 	}>,
 	scale: { pixelsPerMeter: number } | null,
+	axis: { originX: number; originY: number; rotationAngle: number } | null,
 ): string {
+
 	// CSV header
 	const hasScale = scale !== null
+	const hasAxis = axis !== null
 	const headers = [
 		'trackingObjectId',
 		'frame',
@@ -183,8 +207,14 @@ export function generateTrackingDataCSV(
 		'x (pixels)',
 		'y (pixels)',
 	]
+	if (hasAxis) {
+		headers.push('x (axis)', 'y (axis)')
+	}
 	if (hasScale) {
 		headers.push('x (meters)', 'y (meters)')
+	}
+	if (hasAxis && hasScale) {
+		headers.push('x (axis meters)', 'y (axis meters)')
 	}
 
 	// Generate CSV rows
@@ -197,10 +227,29 @@ export function generateTrackingDataCSV(
 			point.x.toFixed(2),
 			point.y.toFixed(2),
 		]
+
+		// Transform to axis coordinates if axis is configured
+		let axisX = point.x
+		let axisY = point.y
+		if (hasAxis && axis) {
+			const transformed = transformToAxisCoordinates(point.x, point.y, axis)
+			axisX = transformed.x
+			axisY = transformed.y
+			row.push(axisX.toFixed(2), axisY.toFixed(2))
+		}
+
+		// Convert to meters if scale is available
 		if (hasScale && scale) {
 			const xMeters = point.x / scale.pixelsPerMeter
 			const yMeters = point.y / scale.pixelsPerMeter
 			row.push(xMeters.toFixed(6), yMeters.toFixed(6))
+
+			// If axis is also configured, include axis-transformed meters
+			if (hasAxis) {
+				const axisXMeters = axisX / scale.pixelsPerMeter
+				const axisYMeters = axisY / scale.pixelsPerMeter
+				row.push(axisXMeters.toFixed(6), axisYMeters.toFixed(6))
+			}
 		}
 		return row.join(',')
 	})
@@ -304,6 +353,76 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 
 		return data({ success: true, scale })
+	}
+
+	if (intent === 'save-axis') {
+		const submission = parseWithZod(formData, {
+			schema: SaveAxisSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId, originX, originY, rotationAngle } = submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to set axis for this video',
+			{ status: 403 },
+		)
+
+		// Check if axis already exists
+		const existingAxis = await prisma.videoAxis.findUnique({
+			where: { videoId },
+		})
+
+		let axis
+		if (existingAxis) {
+			// Update existing axis
+			axis = await prisma.videoAxis.update({
+				where: { id: existingAxis.id },
+				data: {
+					originX,
+					originY,
+					rotationAngle,
+				},
+				select: {
+					id: true,
+					originX: true,
+					originY: true,
+					rotationAngle: true,
+				},
+			})
+		} else {
+			// Create new axis
+			axis = await prisma.videoAxis.create({
+				data: {
+					videoId,
+					originX,
+					originY,
+					rotationAngle,
+				},
+				select: {
+					id: true,
+					originX: true,
+					originY: true,
+					rotationAngle: true,
+				},
+			})
+		}
+
+		return data({ success: true, axis })
 	}
 
 	if (intent === 'create-tracking-object') {
@@ -631,6 +750,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
+	const [isAxisConfigurationMode, setIsAxisConfigurationMode] = useState(false)
 	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
 		string | null
 	>(loaderData.activeTrackingObjectId ?? null)
@@ -931,6 +1051,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								<VideoAnalysisDashboard
 									trackingPoints={loaderData.trackingPoints}
 									scale={loaderData.scale}
+									axis={loaderData.axis}
 								/>
 							</div>
 						</motion.div>
@@ -1065,6 +1186,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								trackingPoints={loaderData.trackingPoints}
 								trackingObjects={optimisticTrackingObjects}
 								scale={loaderData.scale}
+								axis={loaderData.axis}
 							/>
 						</TabsContent>
 						<TabsContent
@@ -1075,6 +1197,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								trackingPoints={loaderData.trackingPoints}
 								trackingObjects={optimisticTrackingObjects}
 								scale={loaderData.scale}
+								axis={loaderData.axis}
 							/>
 						</TabsContent>
 						<TabsContent
@@ -1085,6 +1208,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								trackingPoints={loaderData.trackingPoints}
 								trackingObjects={optimisticTrackingObjects}
 								scale={loaderData.scale}
+								axis={loaderData.axis}
 							/>
 						</TabsContent>
 					</div>
@@ -1247,6 +1371,9 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								scale={loaderData.scale}
 								isScaleCalibrationModeExternal={isScaleCalibrationMode}
 								onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+								axis={loaderData.axis}
+								isAxisConfigurationModeExternal={isAxisConfigurationMode}
+								onAxisConfigurationModeChange={setIsAxisConfigurationMode}
 								onCurrentTimeChange={setCurrentVideoTime}
 								onSeekToFrameRef={(seekFn) => {
 									seekToFrameRef.current = seekFn
@@ -1273,6 +1400,19 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 										>
 											<Icon name="file" className="h-4 w-4" />
 											Set Scale
+										</Button>
+										<Button
+											type="button"
+											variant={isAxisConfigurationMode ? 'default' : 'outline'}
+											size="default"
+											className="gap-2"
+											title="Set Axis"
+											onClick={() =>
+												setIsAxisConfigurationMode(!isAxisConfigurationMode)
+											}
+										>
+											<Icon name="crosshair-2" className="h-4 w-4" />
+											Set Axis
 										</Button>
 										<Button
 											type="button"

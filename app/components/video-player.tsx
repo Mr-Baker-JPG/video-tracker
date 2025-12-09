@@ -27,6 +27,13 @@ interface Scale {
 	pixelsPerMeter: number
 }
 
+interface Axis {
+	id: string
+	originX: number
+	originY: number
+	rotationAngle: number // In radians
+}
+
 interface VideoPlayerProps {
 	src: string
 	className?: string
@@ -38,6 +45,9 @@ interface VideoPlayerProps {
 	scale?: Scale | null
 	onScaleCalibrationModeChange?: (isActive: boolean) => void
 	isScaleCalibrationModeExternal?: boolean
+	axis?: Axis | null
+	onAxisConfigurationModeChange?: (isActive: boolean) => void
+	isAxisConfigurationModeExternal?: boolean
 	onCurrentTimeChange?: (currentTime: number) => void
 	onSeekToFrameRef?: (seekFn: (frame: number) => void) => void
 }
@@ -83,6 +93,9 @@ export function VideoPlayer({
 	scale: initialScale = null,
 	onScaleCalibrationModeChange,
 	isScaleCalibrationModeExternal = false,
+	axis: initialAxis = null,
+	onAxisConfigurationModeChange,
+	isAxisConfigurationModeExternal = false,
 	onCurrentTimeChange,
 	onSeekToFrameRef,
 }: VideoPlayerProps) {
@@ -183,6 +196,44 @@ export function VideoPlayer({
 	const [distanceMeters, setDistanceMeters] = useState<string>('')
 	const [scale, setScale] = useState<Scale | null>(initialScale)
 	const [frameInput, setFrameInput] = useState<string>('')
+
+	// Axis configuration state
+	const [isAxisConfigurationMode, setIsAxisConfigurationMode] = useState(false)
+
+	// Sync external axis configuration mode
+	useEffect(() => {
+		if (isAxisConfigurationModeExternal !== undefined) {
+			setIsAxisConfigurationMode(isAxisConfigurationModeExternal)
+		}
+	}, [isAxisConfigurationModeExternal])
+
+	// Notify parent of axis configuration mode changes
+	useEffect(() => {
+		onAxisConfigurationModeChange?.(isAxisConfigurationMode)
+	}, [isAxisConfigurationMode, onAxisConfigurationModeChange])
+
+	const [axis, setAxis] = useState<Axis | null>(initialAxis)
+	const [axisOrigin, setAxisOrigin] = useState<{ x: number; y: number } | null>(
+		initialAxis ? { x: initialAxis.originX, y: initialAxis.originY } : null,
+	)
+	const [axisRotation, setAxisRotation] = useState<number>(
+		initialAxis?.rotationAngle || 0,
+	)
+	const [showAxis, setShowAxis] = useState<boolean>(!!initialAxis)
+	const [isDraggingAxis, setIsDraggingAxis] = useState<
+		'origin' | 'rotation' | null
+	>(null)
+	const [dragStartPos, setDragStartPos] = useState<{
+		x: number
+		y: number
+	} | null>(null)
+	const [dragStartOrigin, setDragStartOrigin] = useState<{
+		x: number
+		y: number
+	} | null>(null)
+	const [dragStartRotation, setDragStartRotation] = useState<number | null>(
+		null,
+	)
 
 	const handlePlayPause = useCallback(() => {
 		const video = videoRef.current
@@ -365,6 +416,7 @@ export function VideoPlayer({
 		video.pause()
 	}, [])
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	const goToFirstFrame = useCallback(() => {
 		const video = videoRef.current
 		if (!video) return
@@ -374,6 +426,7 @@ export function VideoPlayer({
 		video.pause()
 	}, [])
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	const goToLastFrame = useCallback(() => {
 		const video = videoRef.current
 		if (!video || !duration) return
@@ -521,6 +574,21 @@ export function VideoPlayer({
 		}
 	}, [trackingPoints])
 
+	// Sync axis state when initialAxis prop changes
+	useEffect(() => {
+		if (initialAxis) {
+			setAxis(initialAxis)
+			setAxisOrigin({ x: initialAxis.originX, y: initialAxis.originY })
+			setAxisRotation(initialAxis.rotationAngle)
+			setShowAxis(true)
+		} else {
+			setAxis(null)
+			setAxisOrigin(null)
+			setAxisRotation(0)
+			setShowAxis(false)
+		}
+	}, [initialAxis])
+
 	// Convert canvas coordinates to video coordinates
 	const convertCanvasToVideoCoords = useCallback(
 		(canvasX: number, canvasY: number) => {
@@ -584,6 +652,81 @@ export function VideoPlayer({
 					// Reset and start over
 					setScaleStartPoint(coords)
 					setScaleEndPoint(null)
+				}
+				return
+			}
+
+			// Handle axis configuration mode
+			if (isAxisConfigurationMode) {
+				const canvas = canvasRef.current
+				const rect = canvas.getBoundingClientRect()
+				const canvasX = e.clientX - rect.left
+				const canvasY = e.clientY - rect.top
+
+				const coords = convertCanvasToVideoCoords(canvasX, canvasY)
+				if (!coords) return
+
+				// Check if clicking on origin (within 10 pixels)
+				if (axisOrigin) {
+					const video = videoRef.current
+					if (!video) return
+
+					// Calculate canvas scale and offset
+					const videoAspect = video.videoWidth / video.videoHeight
+					const canvasAspect = canvas.width / canvas.height
+					let canvasScale: number
+					let offsetX = 0
+					let offsetY = 0
+
+					if (videoAspect > canvasAspect) {
+						canvasScale = canvas.width / video.videoWidth
+						const scaledHeight = video.videoHeight * canvasScale
+						offsetY = (canvas.height - scaledHeight) / 2
+					} else {
+						canvasScale = canvas.height / video.videoHeight
+						const scaledWidth = video.videoWidth * canvasScale
+						offsetX = (canvas.width - scaledWidth) / 2
+					}
+
+					const originCanvasX = axisOrigin.x * canvasScale + offsetX
+					const originCanvasY = axisOrigin.y * canvasScale + offsetY
+					const distToOrigin = Math.sqrt(
+						Math.pow(canvasX - originCanvasX, 2) +
+							Math.pow(canvasY - originCanvasY, 2),
+					)
+
+					if (distToOrigin < 10) {
+						// Start dragging origin
+						setIsDraggingAxis('origin')
+						setDragStartPos({ x: canvasX, y: canvasY })
+						setDragStartOrigin({ x: axisOrigin.x, y: axisOrigin.y })
+						return
+					}
+
+					// Check if clicking on rotation handle (x-axis endpoint)
+					const axisLength = 50 // Length of axis line in video pixels
+					const handleX = axisOrigin.x + axisLength * Math.cos(axisRotation)
+					const handleY = axisOrigin.y + axisLength * Math.sin(axisRotation)
+					const handleCanvasX = handleX * canvasScale + offsetX
+					const handleCanvasY = handleY * canvasScale + offsetY
+					const distToHandle = Math.sqrt(
+						Math.pow(canvasX - handleCanvasX, 2) +
+							Math.pow(canvasY - handleCanvasY, 2),
+					)
+
+					if (distToHandle < 10) {
+						// Start dragging rotation handle
+						setIsDraggingAxis('rotation')
+						setDragStartPos({ x: canvasX, y: canvasY })
+						setDragStartRotation(axisRotation)
+						return
+					}
+				}
+
+				// If no axis origin exists, place it
+				if (!axisOrigin) {
+					setAxisOrigin(coords)
+					setAxisRotation(0) // Default rotation (x-axis pointing right)
 				}
 				return
 			}
@@ -672,6 +815,9 @@ export function VideoPlayer({
 			activeTrackingObjectId,
 			localTrackingPoints,
 			isScaleCalibrationMode,
+			isAxisConfigurationMode,
+			axisOrigin,
+			axisRotation,
 			goToNextFrame,
 			convertCanvasToVideoCoords,
 			scaleStartPoint,
@@ -679,6 +825,82 @@ export function VideoPlayer({
 			setActiveTrackingObjectId,
 		],
 	)
+
+	// Handle mouse move for axis dragging
+	const handleCanvasMouseMove = useCallback(
+		(e: React.MouseEvent<HTMLCanvasElement>) => {
+			if (
+				!isDraggingAxis ||
+				!dragStartPos ||
+				!canvasRef.current ||
+				!videoRef.current
+			)
+				return
+
+			const canvas = canvasRef.current
+			const video = videoRef.current
+			const rect = canvas.getBoundingClientRect()
+			const canvasX = e.clientX - rect.left
+			const canvasY = e.clientY - rect.top
+
+			if (isDraggingAxis === 'origin' && dragStartOrigin) {
+				// Drag origin
+				const coords = convertCanvasToVideoCoords(canvasX, canvasY)
+				if (coords) {
+					setAxisOrigin(coords)
+				}
+			} else if (isDraggingAxis === 'rotation' && dragStartRotation !== null) {
+				// Drag rotation handle
+				if (!axisOrigin) return
+
+				// Calculate canvas scale and offset
+				const videoAspect = video.videoWidth / video.videoHeight
+				const canvasAspect = canvas.width / canvas.height
+				let canvasScale: number
+				let offsetX = 0
+				let offsetY = 0
+
+				if (videoAspect > canvasAspect) {
+					canvasScale = canvas.width / video.videoWidth
+					const scaledHeight = video.videoHeight * canvasScale
+					offsetY = (canvas.height - scaledHeight) / 2
+				} else {
+					canvasScale = canvas.height / video.videoHeight
+					const scaledWidth = video.videoWidth * canvasScale
+					offsetX = (canvas.width - scaledWidth) / 2
+				}
+
+				const originCanvasX = axisOrigin.x * canvasScale + offsetX
+				const originCanvasY = axisOrigin.y * canvasScale + offsetY
+
+				// Calculate angle from origin to current mouse position
+				const dx = canvasX - originCanvasX
+				const dy = canvasY - originCanvasY
+				// Convert canvas coordinates to video coordinates for angle calculation
+				const videoDx = dx / canvasScale
+				const videoDy = dy / canvasScale
+				const newAngle = Math.atan2(videoDy, videoDx)
+
+				setAxisRotation(newAngle)
+			}
+		},
+		[
+			isDraggingAxis,
+			dragStartPos,
+			dragStartOrigin,
+			dragStartRotation,
+			axisOrigin,
+			convertCanvasToVideoCoords,
+		],
+	)
+
+	// Handle mouse up to stop dragging
+	const handleCanvasMouseUp = useCallback(() => {
+		setIsDraggingAxis(null)
+		setDragStartPos(null)
+		setDragStartOrigin(null)
+		setDragStartRotation(null)
+	}, [])
 
 	// Handle saving scale calibration
 	const handleSaveScale = useCallback(() => {
@@ -718,6 +940,59 @@ export function VideoPlayer({
 		setIsScaleCalibrationMode(false)
 	}, [])
 
+	// Handle saving axis configuration
+	const handleSaveAxis = useCallback(() => {
+		if (!videoId || !axisOrigin) return
+
+		const formData = new FormData()
+		formData.append('intent', 'save-axis')
+		formData.append('videoId', videoId)
+		formData.append('originX', axisOrigin.x.toString())
+		formData.append('originY', axisOrigin.y.toString())
+		formData.append('rotationAngle', axisRotation.toString())
+
+		if (fetcher) {
+			void fetcher.submit(formData, {
+				method: 'POST',
+			})
+			// Exit axis configuration mode
+			setIsAxisConfigurationMode(false)
+		}
+	}, [videoId, axisOrigin, axisRotation, fetcher])
+
+	// Reset axis configuration mode (may be used in future UI)
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	const handleCancelAxis = useCallback(() => {
+		// Reset to initial axis if it exists, otherwise clear
+		if (initialAxis) {
+			setAxisOrigin({ x: initialAxis.originX, y: initialAxis.originY })
+			setAxisRotation(initialAxis.rotationAngle)
+		} else {
+			setAxisOrigin(null)
+			setAxisRotation(0)
+		}
+		setIsAxisConfigurationMode(false)
+		setIsDraggingAxis(null)
+	}, [initialAxis])
+
+	// Auto-save axis when exiting configuration mode if axis origin is set
+	const prevAxisConfigModeRef = useRef(isAxisConfigurationMode)
+	useEffect(() => {
+		// Only save when transitioning from configuration mode to non-configuration mode
+		if (
+			prevAxisConfigModeRef.current &&
+			!isAxisConfigurationMode &&
+			axisOrigin &&
+			videoId &&
+			fetcher
+		) {
+			// Save axis configuration
+			handleSaveAxis()
+		}
+		prevAxisConfigModeRef.current = isAxisConfigurationMode
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isAxisConfigurationMode, axisOrigin, videoId])
+
 	// Update scale when fetcher returns new data
 	useEffect(() => {
 		if (fetcher?.data?.success) {
@@ -731,6 +1006,15 @@ export function VideoPlayer({
 				setDistanceMeters('')
 				// Exit scale calibration mode - will sync with external state
 				setIsScaleCalibrationMode(false)
+			}
+			// Handle axis save response
+			if (fetcher.data?.axis) {
+				const newAxis = fetcher.data.axis as Axis
+				setAxis(newAxis)
+				setAxisOrigin({ x: newAxis.originX, y: newAxis.originY })
+				setAxisRotation(newAxis.rotationAngle)
+				// Exit axis configuration mode - will sync with external state
+				setIsAxisConfigurationMode(false)
 			}
 		}
 	}, [fetcher?.data, onScaleCalibrationModeChange])
@@ -835,6 +1119,59 @@ export function VideoPlayer({
 					ctx.beginPath()
 					ctx.arc(canvasEndX, canvasEndY, 4, 0, 2 * Math.PI)
 					ctx.fill()
+				}
+			}
+
+			// Draw axis if it exists and is visible
+			if (showAxis && axisOrigin) {
+				const axisLength = 50 // Length of axis line in video pixels
+				const originCanvasX = axisOrigin.x * canvasScale + offsetX
+				const originCanvasY = axisOrigin.y * canvasScale + offsetY
+
+				// Draw x-axis (red)
+				const xAxisEndX = axisOrigin.x + axisLength * Math.cos(axisRotation)
+				const xAxisEndY = axisOrigin.y + axisLength * Math.sin(axisRotation)
+				const xAxisEndCanvasX = xAxisEndX * canvasScale + offsetX
+				const xAxisEndCanvasY = xAxisEndY * canvasScale + offsetY
+
+				ctx.strokeStyle = '#ff0000'
+				ctx.lineWidth = 2
+				ctx.beginPath()
+				ctx.moveTo(originCanvasX, originCanvasY)
+				ctx.lineTo(xAxisEndCanvasX, xAxisEndCanvasY)
+				ctx.stroke()
+
+				// Draw y-axis (blue) - perpendicular to x-axis
+				const yAxisEndX = axisOrigin.x + axisLength * Math.cos(axisRotation + Math.PI / 2)
+				const yAxisEndY = axisOrigin.y + axisLength * Math.sin(axisRotation + Math.PI / 2)
+				const yAxisEndCanvasX = yAxisEndX * canvasScale + offsetX
+				const yAxisEndCanvasY = yAxisEndY * canvasScale + offsetY
+
+				ctx.strokeStyle = '#0000ff'
+				ctx.lineWidth = 2
+				ctx.beginPath()
+				ctx.moveTo(originCanvasX, originCanvasY)
+				ctx.lineTo(yAxisEndCanvasX, yAxisEndCanvasY)
+				ctx.stroke()
+
+				// Draw origin point (white circle)
+				ctx.fillStyle = '#ffffff'
+				ctx.strokeStyle = '#000000'
+				ctx.lineWidth = 2
+				ctx.beginPath()
+				ctx.arc(originCanvasX, originCanvasY, 5, 0, 2 * Math.PI)
+				ctx.fill()
+				ctx.stroke()
+
+				// Draw rotation handle (x-axis endpoint) - only in configuration mode
+				if (isAxisConfigurationMode) {
+					ctx.fillStyle = '#ffff00'
+					ctx.strokeStyle = '#000000'
+					ctx.lineWidth = 2
+					ctx.beginPath()
+					ctx.arc(xAxisEndCanvasX, xAxisEndCanvasY, 6, 0, 2 * Math.PI)
+					ctx.fill()
+					ctx.stroke()
 				}
 			}
 
@@ -958,6 +1295,10 @@ export function VideoPlayer({
 		scaleEndPoint,
 		showTrajectoryPaths,
 		getTrackingObjectColor,
+		showAxis,
+		axisOrigin,
+		axisRotation,
+		isAxisConfigurationMode,
 	])
 
 	// Sync local tracking objects when prop changes
@@ -1028,11 +1369,16 @@ export function VideoPlayer({
 						ref={canvasRef}
 						className="absolute top-0 left-0 cursor-crosshair"
 						onClick={handleCanvasClick}
+						onMouseMove={handleCanvasMouseMove}
+						onMouseUp={handleCanvasMouseUp}
+						onMouseLeave={handleCanvasMouseUp}
 						style={{ pointerEvents: 'auto' }}
 						aria-label={
 							isScaleCalibrationMode
 								? 'Scale calibration canvas - click to draw scale line'
-								: 'Tracking canvas - click to place tracking points'
+								: isAxisConfigurationMode
+									? 'Axis configuration canvas - click to place origin, drag to move/rotate'
+									: 'Tracking canvas - click to place tracking points'
 						}
 					/>
 				)}
@@ -1231,6 +1577,23 @@ export function VideoPlayer({
 							>
 								<Icon name="crosshair-2" className="h-4 w-4" />
 								{showTrajectoryPaths ? 'Hide Path' : 'Show Path'}
+							</button>
+						)}
+						{/* Axis visibility toggle */}
+						{axis && (
+							<button
+								type="button"
+								onClick={() => setShowAxis(!showAxis)}
+								aria-label={showAxis ? 'Hide axis' : 'Show axis'}
+								title={showAxis ? 'Hide axis' : 'Show axis'}
+								className={`flex min-w-[100px] items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+									showAxis
+										? 'border-blue-600 bg-blue-700/50 text-white hover:bg-blue-700'
+										: 'border-slate-600 bg-slate-700/50 text-white hover:bg-slate-700'
+								}`}
+							>
+								<Icon name="crosshair-2" className="h-4 w-4" />
+								{showAxis ? 'Hide Axis' : 'Show Axis'}
 							</button>
 						)}
 					</div>

@@ -53,8 +53,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 		},
 	})
 
+	// Fetch axis if it exists
+	const axis = await prisma.videoAxis.findUnique({
+		where: { videoId: video.id },
+		select: {
+			originX: true,
+			originY: true,
+			rotationAngle: true,
+		},
+	})
+
 	// Generate CSV
-	const csv = generateTrackingDataCSV(trackingPoints, scale)
+	const csv = generateTrackingDataCSV(trackingPoints, scale, axis)
 
 	// Return CSV as response with appropriate headers
 	const filename = `${video.filename.replace(/\.[^/.]+$/, '')}_tracking_data.csv`

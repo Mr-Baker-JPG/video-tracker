@@ -2,6 +2,8 @@
  * Statistics calculation utilities for video tracking data
  */
 
+import { transformToAxisCoordinates } from './coordinate-transform.ts'
+
 const FPS = 30 // Frames per second for time calculation
 
 export type TrackingPoint = {
@@ -15,6 +17,12 @@ export type Scale = {
 	pixelsPerMeter: number
 } | null
 
+export type Axis = {
+	originX: number
+	originY: number
+	rotationAngle: number
+} | null
+
 export type Statistics = {
 	totalDistance: number
 	averageVelocity: number
@@ -26,7 +34,11 @@ export type Statistics = {
  * Calculate total distance traveled by summing distances between consecutive points
  * Groups points by tracking object to calculate distance for each object separately
  */
-function calculateTotalDistance(points: TrackingPoint[], scale: Scale): number {
+function calculateTotalDistance(
+	points: TrackingPoint[],
+	scale: Scale,
+	axis: Axis,
+): number {
 	if (points.length < 2) return 0
 
 	// Group points by tracking object
@@ -51,8 +63,30 @@ function calculateTotalDistance(points: TrackingPoint[], scale: Scale): number {
 			const currentPoint = sortedPoints[i]
 			if (!prevPoint || !currentPoint) continue
 
-			const dx = currentPoint.x - prevPoint.x
-			const dy = currentPoint.y - prevPoint.y
+			// Transform coordinates if axis is configured
+			let prevX = prevPoint.x
+			let prevY = prevPoint.y
+			let currX = currentPoint.x
+			let currY = currentPoint.y
+			if (axis) {
+				const prevTransformed = transformToAxisCoordinates(
+					prevPoint.x,
+					prevPoint.y,
+					axis,
+				)
+				const currTransformed = transformToAxisCoordinates(
+					currentPoint.x,
+					currentPoint.y,
+					axis,
+				)
+				prevX = prevTransformed.x
+				prevY = prevTransformed.y
+				currX = currTransformed.x
+				currY = currTransformed.y
+			}
+
+			const dx = currX - prevX
+			const dy = currY - prevY
 			const distance = Math.sqrt(dx * dx + dy * dy)
 
 			// Convert to meters if scale is available
@@ -72,8 +106,9 @@ function calculateTotalDistance(points: TrackingPoint[], scale: Scale): number {
  */
 function calculateVelocity(
 	points: TrackingPoint[],
-	axis: 'x' | 'y',
+	axisType: 'x' | 'y',
 	scale: Scale,
+	axisConfig: Axis,
 ): Array<{ time: number; velocity: number }> {
 	if (points.length === 0) return []
 	if (points.length === 1) {
@@ -90,6 +125,15 @@ function calculateVelocity(
 		const point = sortedPoints[i]
 		if (!point) continue
 
+		// Transform coordinates if axis is configured
+		let x = point.x
+		let y = point.y
+		if (axisConfig) {
+			const transformed = transformToAxisCoordinates(point.x, point.y, axisConfig)
+			x = transformed.x
+			y = transformed.y
+		}
+
 		const time = point.frame / FPS
 		let velocity: number
 
@@ -100,8 +144,19 @@ function calculateVelocity(
 				velocities.push({ time, velocity: 0 })
 				continue
 			}
-			const deltaPosition =
-				axis === 'x' ? nextPoint.x - point.x : nextPoint.y - point.y
+			// Transform next point coordinates
+			let nextX = nextPoint.x
+			let nextY = nextPoint.y
+			if (axisConfig) {
+				const transformed = transformToAxisCoordinates(
+					nextPoint.x,
+					nextPoint.y,
+					axisConfig,
+				)
+				nextX = transformed.x
+				nextY = transformed.y
+			}
+			const deltaPosition = axisType === 'x' ? nextX - x : nextY - y
 			const deltaTime = (nextPoint.frame - point.frame) / FPS
 			velocity = deltaTime !== 0 ? deltaPosition / deltaTime : 0
 		} else if (i === sortedPoints.length - 1) {
@@ -111,8 +166,19 @@ function calculateVelocity(
 				velocities.push({ time, velocity: 0 })
 				continue
 			}
-			const deltaPosition =
-				axis === 'x' ? point.x - prevPoint.x : point.y - prevPoint.y
+			// Transform prev point coordinates
+			let prevX = prevPoint.x
+			let prevY = prevPoint.y
+			if (axisConfig) {
+				const transformed = transformToAxisCoordinates(
+					prevPoint.x,
+					prevPoint.y,
+					axisConfig,
+				)
+				prevX = transformed.x
+				prevY = transformed.y
+			}
+			const deltaPosition = axisType === 'x' ? x - prevX : y - prevY
 			const deltaTime = (point.frame - prevPoint.frame) / FPS
 			velocity = deltaTime !== 0 ? deltaPosition / deltaTime : 0
 		} else {
@@ -122,8 +188,19 @@ function calculateVelocity(
 				velocities.push({ time, velocity: 0 })
 				continue
 			}
-			const deltaPosition =
-				axis === 'x' ? nextPoint.x - point.x : nextPoint.y - point.y
+			// Transform next point coordinates
+			let nextX = nextPoint.x
+			let nextY = nextPoint.y
+			if (axisConfig) {
+				const transformed = transformToAxisCoordinates(
+					nextPoint.x,
+					nextPoint.y,
+					axisConfig,
+				)
+				nextX = transformed.x
+				nextY = transformed.y
+			}
+			const deltaPosition = axisType === 'x' ? nextX - x : nextY - y
 			const deltaTime = (nextPoint.frame - point.frame) / FPS
 			velocity = deltaTime !== 0 ? deltaPosition / deltaTime : 0
 		}
@@ -144,11 +221,12 @@ function calculateVelocity(
  */
 function calculateAcceleration(
 	points: TrackingPoint[],
-	axis: 'x' | 'y',
+	axisType: 'x' | 'y',
 	scale: Scale,
+	axisConfig: Axis,
 ): Array<{ time: number; acceleration: number }> {
 	// First calculate velocities
-	const velocities = calculateVelocity(points, axis, null) // Don't convert to m/s yet
+	const velocities = calculateVelocity(points, axisType, null, axisConfig) // Don't convert to m/s yet
 
 	if (velocities.length === 0) return []
 	if (velocities.length === 1) {
@@ -219,6 +297,7 @@ function calculateAcceleration(
 export function calculateStatistics(
 	trackingPoints: TrackingPoint[],
 	scale: Scale,
+	axis: Axis = null,
 ): Statistics {
 	if (trackingPoints.length === 0) {
 		return {
@@ -231,11 +310,11 @@ export function calculateStatistics(
 
 	// Calculate total distance (combining x and y components)
 	// We'll calculate the 2D distance traveled
-	const totalDistance = calculateTotalDistance(trackingPoints, scale)
+	const totalDistance = calculateTotalDistance(trackingPoints, scale, axis)
 
 	// Calculate velocities for both axes and combine into magnitude
-	const velocitiesX = calculateVelocity(trackingPoints, 'x', scale)
-	const velocitiesY = calculateVelocity(trackingPoints, 'y', scale)
+	const velocitiesX = calculateVelocity(trackingPoints, 'x', scale, axis)
+	const velocitiesY = calculateVelocity(trackingPoints, 'y', scale, axis)
 
 	// Combine x and y velocities into magnitude: v = sqrt(vx² + vy²)
 	const velocities: number[] = []
@@ -254,8 +333,8 @@ export function calculateStatistics(
 	const maxVelocity = velocities.length > 0 ? Math.max(...velocities) : 0
 
 	// Calculate accelerations for both axes and combine into magnitude
-	const accelerationsX = calculateAcceleration(trackingPoints, 'x', scale)
-	const accelerationsY = calculateAcceleration(trackingPoints, 'y', scale)
+	const accelerationsX = calculateAcceleration(trackingPoints, 'x', scale, axis)
+	const accelerationsY = calculateAcceleration(trackingPoints, 'y', scale, axis)
 
 	// Combine x and y accelerations into magnitude: a = sqrt(ax² + ay²)
 	const accelerations: number[] = []

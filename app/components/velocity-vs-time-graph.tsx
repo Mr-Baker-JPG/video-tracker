@@ -13,6 +13,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
 import { exportGraphAsPNG } from '#app/utils/graph-export.tsx'
+import { transformToAxisCoordinates } from '#app/utils/coordinate-transform.ts'
 
 interface TrackingPoint {
 	frame: number
@@ -25,6 +26,12 @@ interface Scale {
 	pixelsPerMeter: number
 }
 
+interface Axis {
+	originX: number
+	originY: number
+	rotationAngle: number
+}
+
 interface TrackingObject {
 	id: string
 	name: string | null
@@ -35,6 +42,7 @@ interface VelocityVsTimeGraphProps {
 	trackingPoints: TrackingPoint[]
 	trackingObjects?: TrackingObject[]
 	scale: Scale | null
+	axis: Axis | null
 }
 
 const FPS = 30 // Frames per second for time calculation
@@ -50,8 +58,9 @@ type AxisType = 'x' | 'y'
  */
 function calculateVelocity(
 	points: TrackingPoint[],
-	axis: 'x' | 'y',
+	axisType: 'x' | 'y',
 	scale: Scale | null,
+	axisConfig: Axis | null,
 ): Array<{ time: number; velocity: number }> {
 	if (points.length === 0) return []
 	if (points.length === 1) {
@@ -71,6 +80,15 @@ function calculateVelocity(
 		const point = sortedPoints[i]
 		if (!point) continue
 
+		// Transform coordinates if axis is configured
+		let x = point.x
+		let y = point.y
+		if (axisConfig) {
+			const transformed = transformToAxisCoordinates(point.x, point.y, axisConfig)
+			x = transformed.x
+			y = transformed.y
+		}
+
 		const time = point.frame / FPS
 		let velocity: number
 
@@ -81,8 +99,15 @@ function calculateVelocity(
 				velocities.push({ time, velocity: 0 })
 				continue
 			}
-			const deltaPosition =
-				axis === 'x' ? nextPoint.x - point.x : nextPoint.y - point.y
+			// Transform next point coordinates
+			let nextX = nextPoint.x
+			let nextY = nextPoint.y
+			if (axisConfig) {
+				const transformed = transformToAxisCoordinates(nextPoint.x, nextPoint.y, axisConfig)
+				nextX = transformed.x
+				nextY = transformed.y
+			}
+			const deltaPosition = axisType === 'x' ? nextX - x : nextY - y
 			const deltaTime = (nextPoint.frame - point.frame) / FPS
 			velocity = deltaTime !== 0 ? deltaPosition / deltaTime : 0
 		} else if (i === sortedPoints.length - 1) {
@@ -92,8 +117,15 @@ function calculateVelocity(
 				velocities.push({ time, velocity: 0 })
 				continue
 			}
-			const deltaPosition =
-				axis === 'x' ? point.x - prevPoint.x : point.y - prevPoint.y
+			// Transform prev point coordinates
+			let prevX = prevPoint.x
+			let prevY = prevPoint.y
+			if (axisConfig) {
+				const transformed = transformToAxisCoordinates(prevPoint.x, prevPoint.y, axisConfig)
+				prevX = transformed.x
+				prevY = transformed.y
+			}
+			const deltaPosition = axisType === 'x' ? x - prevX : y - prevY
 			const deltaTime = (point.frame - prevPoint.frame) / FPS
 			velocity = deltaTime !== 0 ? deltaPosition / deltaTime : 0
 		} else {
@@ -103,8 +135,15 @@ function calculateVelocity(
 				velocities.push({ time, velocity: 0 })
 				continue
 			}
-			const deltaPosition =
-				axis === 'x' ? nextPoint.x - point.x : nextPoint.y - point.y
+			// Transform next point coordinates
+			let nextX = nextPoint.x
+			let nextY = nextPoint.y
+			if (axisConfig) {
+				const transformed = transformToAxisCoordinates(nextPoint.x, nextPoint.y, axisConfig)
+				nextX = transformed.x
+				nextY = transformed.y
+			}
+			const deltaPosition = axisType === 'x' ? nextX - x : nextY - y
 			const deltaTime = (nextPoint.frame - point.frame) / FPS
 			velocity = deltaTime !== 0 ? deltaPosition / deltaTime : 0
 		}
@@ -124,6 +163,7 @@ export function VelocityVsTimeGraph({
 	trackingPoints,
 	trackingObjects = [],
 	scale,
+	axis,
 }: VelocityVsTimeGraphProps) {
 	const graphContainerRef = useRef<HTMLDivElement>(null)
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
@@ -162,7 +202,7 @@ export function VelocityVsTimeGraph({
 		const timeMap = new Map<number, Record<string, number>>()
 
 		for (const [objectId, points] of pointsByObject.entries()) {
-			const velocities = calculateVelocity(points, selectedAxis, scale)
+			const velocities = calculateVelocity(points, selectedAxis, scale, axis)
 			for (const { time, velocity } of velocities) {
 				if (!timeMap.has(time)) {
 					timeMap.set(time, { time })

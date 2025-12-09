@@ -330,8 +330,8 @@
 				"Manual: Verify smooth dragging and rotation interactions",
 				"Manual: Verify graphs show transformed coordinates correctly"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		}
 	]
 }

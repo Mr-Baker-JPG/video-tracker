@@ -2,18 +2,21 @@ import {
 	calculateStatistics,
 	type Scale,
 	type TrackingPoint,
+	type Axis,
 } from '#app/utils/statistics.ts'
 
 export type VideoAnalysisDashboardProps = {
 	trackingPoints: TrackingPoint[]
 	scale: Scale
+	axis: Axis
 }
 
 export function VideoAnalysisDashboard({
 	trackingPoints,
 	scale,
+	axis,
 }: VideoAnalysisDashboardProps) {
-	const stats = calculateStatistics(trackingPoints, scale)
+	const stats = calculateStatistics(trackingPoints, scale, axis)
 
 	// Determine units based on whether scale is available
 	const distanceUnit = scale ? 'm' : 'px'
