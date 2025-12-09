@@ -293,7 +293,7 @@ function Logo() {
 			className="flex cursor-pointer items-center gap-2 text-xl font-bold text-slate-900"
 		>
 			<div className="bg-primary rounded p-1 text-white">
-				<Icon name="activity-log" className="h-5 w-5" />
+				<Icon name="film" className="h-5 w-5" />
 			</div>
 			Videotrack
 		</Link>

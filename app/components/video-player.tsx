@@ -362,8 +362,8 @@ export function VideoPlayer({
 			if (!video || !duration) return
 			const fps = 30
 			const totalFrames = Math.ceil(duration * fps)
-			// Frame numbers are 1-indexed in the UI, so convert to 0-indexed for calculation
-			const frameIndex = Math.max(1, Math.min(totalFrames, frameNumber)) - 1
+			// Frame numbers are 0-indexed, so use directly
+			const frameIndex = Math.max(0, Math.min(totalFrames - 1, frameNumber))
 			const frameTime = frameIndex / fps
 			video.currentTime = frameTime
 			setCurrentTime(frameTime)
@@ -386,7 +386,8 @@ export function VideoPlayer({
 	useEffect(() => {
 		if (duration > 0) {
 			const fps = 30
-			const currentFrame = Math.ceil(currentTime * fps) + 1
+			// Use round to handle floating-point precision issues when advancing by exact frame increments
+			const currentFrame = Math.round(currentTime * fps)
 			setFrameInput(currentFrame.toString())
 		}
 	}, [currentTime, duration])
@@ -1078,15 +1079,23 @@ export function VideoPlayer({
 								).map((frame) => {
 									const frameTime = frame / 30 // Assuming 30fps
 									const position = (frameTime / duration) * 100
+									// Find the first tracking point at this frame to get its object color
+									const pointAtFrame = localTrackingPoints.find(
+										(p) => p.frame === frame,
+									)
+									const tickColor = pointAtFrame
+										? getTrackingObjectColor(pointAtFrame.trackingObjectId)
+										: '#60a5fa' // Fallback to blue-400 if no point found
 									return (
 										<div
 											key={frame}
-											className="absolute top-0 h-2 w-0.5 bg-blue-400"
+											className="absolute top-0 h-2 w-0.5"
 											style={{
 												left: `${position}%`,
 												transform: 'translateX(-50%)',
+												backgroundColor: tickColor,
 											}}
-											title={`Frame ${frame + 1}`}
+											title={`Frame ${frame}`}
 										/>
 									)
 								})}
@@ -1126,7 +1135,7 @@ export function VideoPlayer({
 									left: `${
 										duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
 									}%`,
-									transform: 'translate(-50%, 20%)',
+									transform: 'translate(-50%, 0%)',
 									transition: isSeeking
 										? 'none'
 										: isPlaying
@@ -1248,8 +1257,8 @@ export function VideoPlayer({
 								>
 									<Input
 										type="number"
-										min="1"
-										max={duration ? Math.ceil(duration * 30) : 1}
+										min="0"
+										max={duration ? Math.ceil(duration * 30) - 1 : 0}
 										value={frameInput}
 										onChange={handleFrameInputChange}
 										onKeyDown={(e) => {
@@ -1263,7 +1272,7 @@ export function VideoPlayer({
 								</form>
 								<span className="text-xs text-slate-400">/</span>
 								<span className="font-mono text-xs text-slate-400">
-									{duration ? Math.ceil(duration * 30) : 0}
+									{duration ? Math.ceil(duration * 30) - 1 : 0}
 								</span>
 							</div>
 						</div>
