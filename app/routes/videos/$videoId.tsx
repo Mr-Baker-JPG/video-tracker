@@ -1,11 +1,11 @@
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
-import { data, Link, useFetcher, useRevalidator } from 'react-router'
+import { data, useFetcher, useRevalidator } from 'react-router'
 import { z } from 'zod'
 import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
-import { VideoAnalysisDashboard } from '#app/components/video-analysis-dashboard.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -35,7 +35,9 @@ import {
 	TabsTrigger,
 } from '#app/components/ui/tabs.tsx'
 import { VelocityVsTimeGraph } from '#app/components/velocity-vs-time-graph.tsx'
+import { VideoAnalysisDashboard } from '#app/components/video-analysis-dashboard.tsx'
 import { VideoPlayer } from '#app/components/video-player.tsx'
+import { useLayout } from '#app/routes/resources/layout-switch.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getVideoSrc } from '#app/utils/misc.tsx'
@@ -624,9 +626,26 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const [editColor, setEditColor] = useState('')
 	const [deleteObjectId, setDeleteObjectId] = useState<string | null>(null)
 	const [showClearPointsDialog, setShowClearPointsDialog] = useState(false)
+	const [showCreateObjectDialog, setShowCreateObjectDialog] = useState(false)
+	const [newObjectName, setNewObjectName] = useState('')
+	const [newObjectColor, setNewObjectColor] = useState('')
+	const colorInputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+	const layoutPreference = useLayout()
+	const [isFullWidthLayout, setIsFullWidthLayout] = useState(
+		layoutPreference === 'full-width',
+	)
+	const [isMetricsCollapsed, setIsMetricsCollapsed] = useState(false)
+	const [currentVideoTime, setCurrentVideoTime] = useState(0)
+	const seekToFrameRef = useRef<((frame: number) => void) | null>(null)
+	const layoutFetcher = useFetcher()
 	const trackingObjectsFetcher = useFetcher()
 	const clearPointsFetcher = useFetcher()
 	const revalidator = useRevalidator()
+
+	// Sync layout state with preference changes
+	useEffect(() => {
+		setIsFullWidthLayout(layoutPreference === 'full-width')
+	}, [layoutPreference])
 
 	// Optimistic updates for tracking objects
 	const [optimisticTrackingObjects, setOptimisticTrackingObjects] = useState<
@@ -657,13 +676,29 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	}
 
 	const handleCreateTrackingObject = () => {
-		void trackingObjectsFetcher.submit(
-			{
-				intent: 'create-tracking-object',
-				videoId: loaderData.video.id,
-			},
-			{ method: 'POST' },
-		)
+		setShowCreateObjectDialog(true)
+		setNewObjectName('')
+		setNewObjectColor('')
+	}
+
+	const handleCreateObjectSubmit = () => {
+		const trimmedName = newObjectName.trim()
+		const trimmedColor = newObjectColor.trim()
+
+		const formData = new FormData()
+		formData.append('intent', 'create-tracking-object')
+		formData.append('videoId', loaderData.video.id)
+		if (trimmedName) {
+			formData.append('name', trimmedName)
+		}
+		if (trimmedColor) {
+			formData.append('color', trimmedColor)
+		}
+
+		void trackingObjectsFetcher.submit(formData, { method: 'POST' })
+		setShowCreateObjectDialog(false)
+		setNewObjectName('')
+		setNewObjectColor('')
 	}
 
 	const handleUpdateTrackingObject = (id: string) => {
@@ -751,6 +786,30 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		setEditColor(obj.color || '')
 	}
 
+	const handleColorCircleClick = (
+		e: React.MouseEvent,
+		obj: { id: string; name: string | null; color: string | null },
+	) => {
+		e.stopPropagation()
+		// Start editing if not already editing
+		if (editingObjectId !== obj.id) {
+			startEditing(obj)
+		}
+		// Trigger color input click to open color picker
+		setTimeout(() => {
+			const colorInput = colorInputRefs.current.get(obj.id)
+			colorInput?.click()
+		}, 50)
+	}
+
+	const setColorInputRef = (id: string, el: HTMLInputElement | null) => {
+		if (el) {
+			colorInputRefs.current.set(id, el)
+		} else {
+			colorInputRefs.current.delete(id)
+		}
+	}
+
 	const handleDeleteTrackingObject = (id: string) => {
 		void trackingObjectsFetcher.submit(
 			{
@@ -784,253 +843,366 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const sortedPoints = [...loaderData.trackingPoints].sort(
 		(a, b) => a.frame - b.frame,
 	)
-	// For now, highlight the first point - in the future this could be based on video player state
-	const currentFrame = sortedPoints[0]?.frame ?? 0
+	// Calculate current frame from video time (30 fps)
+	const currentFrame = Math.floor(currentVideoTime * 30)
 
-	return (
-		<>
-			<div className="flex flex-col gap-6">
-				{/* Breadcrumb Navigation */}
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2 text-sm text-slate-500">
-						<Link
-							to="/videos"
-							className="flex items-center gap-1 transition-colors hover:text-slate-900"
-						>
-							<div className="rounded p-1 transition-colors hover:bg-slate-200">
-								<Icon name="arrow-left" className="h-4 w-4" />
-							</div>
-							Dashboard
-						</Link>
-						<span className="text-slate-300">/</span>
-						<span className="font-semibold text-slate-900">
-							{loaderData.video.filename}
-						</span>
-					</div>
+	// Determine workflow step based on current state
+	const hasScale = loaderData.scale !== null
+	const hasTrackingPoints = loaderData.trackingPoints.length > 0
 
-					<div className="flex items-center gap-2">
-						{/* Auto-save indicator */}
-						{(loaderData.trackingPoints.length > 0 || loaderData.scale) && (
-							<div className="flex items-center gap-1.5 text-xs text-slate-500">
-								<Icon name="check" className="h-3 w-3 text-green-600" />
-								<span className="hidden sm:inline">All changes saved</span>
-							</div>
-						)}
-						<button
-							type="button"
-							className="hover:text-primary flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors"
+	// Metrics and Data Table component (for sidebar)
+	const MetricsAndDataTable = () => (
+		<div className="flex flex-col gap-4">
+			{/* Metrics Card - Grouped logically */}
+			<div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+				<button
+					type="button"
+					onClick={() => setIsMetricsCollapsed(!isMetricsCollapsed)}
+					className="flex w-full items-center justify-between px-6 py-4 transition-colors hover:bg-slate-50"
+				>
+					<h3 className="text-sm font-semibold text-slate-800">
+						Analysis Metrics
+					</h3>
+					<Icon
+						name={isMetricsCollapsed ? 'chevron-down' : 'chevron-up'}
+						className="h-4 w-4 text-slate-500"
+					/>
+				</button>
+				<AnimatePresence initial={false}>
+					{!isMetricsCollapsed && (
+						<motion.div
+							key="metrics-content"
+							initial={{ height: 0, opacity: 0, y: -20 }}
+							animate={{ height: 'auto', opacity: 1, y: 0 }}
+							exit={{ height: 0, opacity: 0, y: -20 }}
+							transition={{
+								height: {
+									duration: 0.3,
+									ease: [0.4, 0, 0.2, 1],
+								},
+								opacity: {
+									duration: 0.25,
+									ease: [0.4, 0, 0.2, 1],
+								},
+								y: {
+									duration: 0.3,
+									ease: [0.4, 0, 0.2, 1],
+								},
+							}}
+							style={{
+								overflow: 'hidden',
+							}}
 						>
-							<Icon name="question-mark-circled" className="h-3 w-3" />
-							Show Guide
-						</button>
-						<Button asChild variant="default" size="sm">
-							<Link
-								to={`/resources/export-tracking-data?videoId=${encodeURIComponent(loaderData.video.id)}`}
-							>
-								<Icon name="download" className="h-3 w-3" />
-								Export Data
-							</Link>
-						</Button>
+							<div className="px-6 pb-6">
+								<VideoAnalysisDashboard
+									trackingPoints={loaderData.trackingPoints}
+									scale={loaderData.scale}
+								/>
+							</div>
+						</motion.div>
+					)}
+				</AnimatePresence>
+			</div>
+
+			{/* Data Table Card - Enhanced with zebra striping */}
+			<div className="flex h-[400px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+				<div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+					<h3 className="text-sm font-semibold text-slate-800">Data Points</h3>
+					<span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
+						{loaderData.trackingPoints.length} pts
+					</span>
+				</div>
+				<ScrollArea className="flex-1 overflow-auto">
+					<table className="w-full text-left text-xs">
+						<thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 font-semibold text-slate-700">
+							<tr>
+								<th className="px-4 py-3">Frame</th>
+								<th className="px-4 py-3">Time (s)</th>
+								<th className="px-4 py-3">X (m)</th>
+								<th className="px-4 py-3">Y (m)</th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-slate-100">
+							{sortedPoints.map((point, index) => {
+								const time = point.frame / 30
+								const xMeters = loaderData.scale
+									? point.x / loaderData.scale.pixelsPerMeter
+									: point.x
+								const yMeters = loaderData.scale
+									? point.y / loaderData.scale.pixelsPerMeter
+									: point.y
+								const isCurrent = point.frame === currentFrame
+
+								return (
+									<tr
+										key={point.id}
+										className={
+											isCurrent
+												? 'bg-blue-50/50 ring-2 ring-blue-500'
+												: index % 2 === 0
+													? 'bg-blue-50/50'
+													: ''
+										}
+									>
+										<td
+											className={`px-4 py-2 font-mono ${
+												isCurrent ? 'font-bold text-blue-600' : 'text-slate-600'
+											} ${!isCurrent ? 'cursor-pointer hover:text-blue-600' : ''}`}
+											onClick={() => {
+												if (seekToFrameRef.current) {
+													// Frame numbers are 0-indexed in the data, but goToFrame expects 1-indexed
+													seekToFrameRef.current(point.frame + 1)
+												}
+											}}
+											title={
+												!isCurrent
+													? 'Click to seek to this frame'
+													: 'Current frame'
+											}
+										>
+											{point.frame}
+										</td>
+										<td
+											className={`px-4 py-2 font-mono ${
+												isCurrent ? 'font-bold text-blue-600' : 'text-slate-600'
+											}`}
+										>
+											{time.toFixed(2)}
+										</td>
+										<td
+											className={`px-4 py-2 font-mono ${
+												isCurrent ? 'font-bold text-blue-600' : 'text-slate-600'
+											}`}
+										>
+											{loaderData.scale
+												? xMeters.toFixed(2)
+												: point.x.toFixed(2)}
+										</td>
+										<td
+											className={`px-4 py-2 font-mono ${
+												isCurrent ? 'font-bold text-blue-600' : 'text-slate-600'
+											}`}
+										>
+											{loaderData.scale
+												? yMeters.toFixed(2)
+												: point.y.toFixed(2)}
+										</td>
+									</tr>
+								)
+							})}
+							{loaderData.trackingPoints.length === 0 && (
+								<tr>
+									<td
+										colSpan={4}
+										className="px-4 py-8 text-center text-sm text-slate-500"
+									>
+										No tracking points yet. Click on the video to start
+										tracking.
+									</td>
+								</tr>
+							)}
+						</tbody>
+					</table>
+				</ScrollArea>
+			</div>
+		</div>
+	)
+
+	// Graph component (for below video player)
+	const GraphSection = () => (
+		<div className="flex min-h-[400px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+			<Tabs defaultValue="position" className="flex h-full flex-col">
+				{/* Tab header - Primary, not secondary */}
+				<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+					<TabsList className="grid w-auto grid-cols-3">
+						<TabsTrigger value="position">Position</TabsTrigger>
+						<TabsTrigger value="velocity">Velocity</TabsTrigger>
+						<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
+					</TabsList>
+				</div>
+				{/* Graph area with card container */}
+				<div className="flex-1 p-6">
+					<div className="h-full rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
+						<TabsContent
+							value="position"
+							className="mt-0 flex-1 overflow-hidden"
+						>
+							<PositionVsTimeGraph
+								trackingPoints={loaderData.trackingPoints}
+								trackingObjects={optimisticTrackingObjects}
+								scale={loaderData.scale}
+							/>
+						</TabsContent>
+						<TabsContent
+							value="velocity"
+							className="mt-0 flex-1 overflow-hidden"
+						>
+							<VelocityVsTimeGraph
+								trackingPoints={loaderData.trackingPoints}
+								trackingObjects={optimisticTrackingObjects}
+								scale={loaderData.scale}
+							/>
+						</TabsContent>
+						<TabsContent
+							value="acceleration"
+							className="mt-0 flex-1 overflow-hidden"
+						>
+							<AccelerationVsTimeGraph
+								trackingPoints={loaderData.trackingPoints}
+								trackingObjects={optimisticTrackingObjects}
+								scale={loaderData.scale}
+							/>
+						</TabsContent>
 					</div>
 				</div>
+			</Tabs>
+		</div>
+	)
 
-				{/* Main Content Grid */}
-				<div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-					{/* Left Column: Video Player */}
-					<div className="space-y-3 lg:col-span-8">
-						{/* Tools Bar */}
-						<div className="relative z-10 flex items-center justify-between rounded-t-lg border-x border-t border-b-0 border-slate-200 bg-white px-3 py-2 shadow-sm">
-							<div className="flex items-center gap-1">
-								<span className="mr-2 text-xs font-bold tracking-wider text-slate-400 uppercase">
-									Tools
-								</span>
-								<Button
-									type="button"
-									variant={isScaleCalibrationMode ? 'default' : 'secondary'}
-									size="sm"
-									className="group"
-									title="Set Scale"
-									onClick={() =>
-										setIsScaleCalibrationMode(!isScaleCalibrationMode)
-									}
-								>
-									<Icon
-										name="file"
-										className="mr-2 h-4 w-4 text-slate-500 transition-colors group-hover:text-slate-900"
-									/>
-									<span className="hidden sm:inline">Set Scale</span>
-								</Button>
-								<Button
-									type="button"
-									variant="default"
-									size="sm"
-									title="Track Object"
-								>
-									<Icon name="crosshair-2" className="mr-2 h-4 w-4" />
-									<span className="hidden sm:inline">Track</span>
-								</Button>
-								<div className="mx-1 h-5 w-px bg-slate-200" />
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon"
-									className="text-slate-400 hover:bg-red-50 hover:text-red-500"
-									title="Clear Points"
-									onClick={() => setShowClearPointsDialog(true)}
-									disabled={loaderData.trackingPoints.length === 0}
-								>
-									<Icon name="trash" className="h-4 w-4" />
-								</Button>
+	// Full analytics section (for full-width mode)
+	const FullAnalyticsSection = () => (
+		<div className="flex flex-col gap-4">
+			<MetricsAndDataTable />
+			<GraphSection />
+		</div>
+	)
+
+	return (
+		<div className="min-h-screen bg-slate-50">
+			{/* Workflow Stepper */}
+			<div className="border-b border-slate-200 bg-white">
+				<div className="mx-auto max-w-[1920px] px-6 py-4">
+					<div className="flex items-center justify-center gap-8">
+						{/* Step 1: Set Scale */}
+						<div className="flex items-center gap-3">
+							<div
+								className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
+									hasScale
+										? 'bg-blue-600 text-white'
+										: 'bg-slate-200 text-slate-500'
+								}`}
+							>
+								1
 							</div>
-
-							<div className="flex items-center gap-2">
-								<DropdownMenu modal={false}>
-									<DropdownMenuTrigger asChild className="dark:text-white">
-										<Button variant="outline" size="sm" className="gap-2">
-											{activeTrackingObjectId ? (
-												<>
-													<div
-														className="h-2 w-2 rounded-full"
-														style={{
-															backgroundColor: getTrackingObjectColor(
-																activeTrackingObjectId,
-															),
-														}}
-													/>
-													<span className="text-xs">
-														{getTrackingObjectName(activeTrackingObjectId)}
-													</span>
-												</>
-											) : (
-												<>
-													<Icon name="crosshair-2" className="h-3 w-3" />
-													<span className="text-xs">Select Object</span>
-												</>
-											)}
-											<Icon name="chevron-down" className="h-3 w-3" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent
-										align="end"
-										className="w-64"
-										sideOffset={4}
-										alignOffset={0}
-									>
-										<DropdownMenuLabel>Tracking Objects</DropdownMenuLabel>
-										<DropdownMenuSeparator />
-										{optimisticTrackingObjects.length === 0 ? (
-											<DropdownMenuItem disabled>
-												<span className="text-xs text-slate-500">
-													No objects yet
-												</span>
-											</DropdownMenuItem>
-										) : (
-											optimisticTrackingObjects.map((obj) => (
-												<DropdownMenuItem
-													key={obj.id}
-													onClick={(e) => {
-														// Don't close dropdown or change active object when editing
-														if (editingObjectId === obj.id) {
-															e.preventDefault()
-															return
-														}
-														setActiveTrackingObjectId(obj.id)
-													}}
-													className="flex items-center gap-2"
-													onSelect={(e) => {
-														// Prevent dropdown from closing when editing
-														if (editingObjectId === obj.id) {
-															e.preventDefault()
-														}
-													}}
-												>
-													<div
-														className="h-2 w-2 rounded-full"
-														style={{
-															backgroundColor: getTrackingObjectColor(obj.id),
-														}}
-													/>
-													<span className="flex-1">
-														{getTrackingObjectName(obj.id)}
-													</span>
-													{editingObjectId === obj.id ? (
-														<div className="flex items-center gap-1">
-															<Input
-																type="text"
-																value={editName}
-																onChange={(e) => setEditName(e.target.value)}
-																onKeyDown={(e) => {
-																	if (e.key === 'Enter') {
-																		e.preventDefault()
-																		e.stopPropagation()
-																		handleUpdateTrackingObject(obj.id)
-																	}
-																}}
-																onFocus={(e) => e.stopPropagation()}
-																onMouseDown={(e) => e.stopPropagation()}
-																autoFocus
-																placeholder="Name"
-																className="h-6 w-20 text-xs"
-																onClick={(e) => e.stopPropagation()}
-															/>
-															<Input
-																type="color"
-																value={editColor || '#000000'}
-																onChange={(e) => setEditColor(e.target.value)}
-																className="h-6 w-10"
-																onClick={(e) => e.stopPropagation()}
-															/>
-															<Button
-																size="sm"
-																variant="ghost"
-																onClick={(e) => {
-																	e.stopPropagation()
-																	handleUpdateTrackingObject(obj.id)
-																}}
-															>
-																<Icon name="check" className="h-3 w-3" />
-															</Button>
-														</div>
-													) : (
-														<div className="flex items-center gap-1">
-															<Button
-																size="sm"
-																variant="ghost"
-																onClick={(e) => {
-																	e.stopPropagation()
-																	startEditing(obj)
-																}}
-															>
-																<Icon name="pencil-1" className="h-3 w-3" />
-															</Button>
-															<Button
-																size="sm"
-																variant="ghost"
-																onClick={(e) => {
-																	e.stopPropagation()
-																	setDeleteObjectId(obj.id)
-																}}
-																className="text-red-600 hover:bg-red-50 hover:text-red-700"
-															>
-																<Icon name="trash" className="h-3 w-3" />
-															</Button>
-														</div>
-													)}
-												</DropdownMenuItem>
-											))
-										)}
-										<DropdownMenuSeparator />
-										<DropdownMenuItem onClick={handleCreateTrackingObject}>
-											<Icon name="plus" className="mr-2 h-4 w-4" />
-											Create New Object
-										</DropdownMenuItem>
-									</DropdownMenuContent>
-								</DropdownMenu>
+							<div>
+								<div
+									className={`text-sm font-semibold ${
+										hasScale ? 'text-slate-900' : 'text-slate-500'
+									}`}
+								>
+									Set Scale
+								</div>
+								<div className="text-xs text-slate-500">Calibrate distance</div>
 							</div>
 						</div>
 
-						{/* Video Player Container */}
-						<div className="group relative w-full overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-slate-900 shadow-lg">
+						<div className="h-px w-16 bg-slate-300" />
+
+						{/* Step 2: Track Object */}
+						<div className="flex items-center gap-3">
+							<div
+								className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
+									hasTrackingPoints
+										? 'bg-blue-600 text-white'
+										: 'bg-slate-200 text-slate-500'
+								}`}
+							>
+								2
+							</div>
+							<div>
+								<div
+									className={`text-sm font-semibold ${
+										hasTrackingPoints ? 'text-slate-900' : 'text-slate-500'
+									}`}
+								>
+									Track Object
+								</div>
+								<div className="text-xs text-slate-500">
+									Click to place points
+								</div>
+							</div>
+						</div>
+
+						<div className="h-px w-16 bg-slate-300" />
+
+						{/* Step 3: Review Path */}
+						<div className="flex items-center gap-3">
+							<div
+								className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
+									hasTrackingPoints && hasScale
+										? 'bg-blue-600 text-white'
+										: 'bg-slate-200 text-slate-500'
+								}`}
+							>
+								3
+							</div>
+							<div>
+								<div
+									className={`text-sm font-semibold ${
+										hasTrackingPoints && hasScale
+											? 'text-slate-900'
+											: 'text-slate-500'
+									}`}
+								>
+									Review Path
+								</div>
+								<div className="text-xs text-slate-400">Verify trajectory</div>
+							</div>
+						</div>
+
+						<div className="h-px w-16 bg-slate-300" />
+
+						{/* Step 4: Export Data */}
+						<div className="flex items-center gap-3">
+							<div
+								className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
+									hasTrackingPoints && hasScale
+										? 'bg-blue-600 text-white'
+										: 'bg-slate-200 text-slate-500'
+								}`}
+							>
+								4
+							</div>
+							<div>
+								<div
+									className={`text-sm font-semibold ${
+										hasTrackingPoints && hasScale
+											? 'text-slate-900'
+											: 'text-slate-500'
+									}`}
+								>
+									Export Data
+								</div>
+								<div className="text-xs text-slate-400">Download results</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			{/* Main Content */}
+			<div className="mx-auto max-w-[1920px] px-6 py-6">
+				{isFullWidthLayout ? (
+					/* Full Width Layout */
+					<div className="flex flex-col gap-6">
+						{/* Video Player */}
+						<motion.div
+							className="w-full space-y-4"
+							layout
+							layoutId="video-player-container"
+							initial={false}
+							transition={{
+								layout: {
+									duration: 0.4,
+									ease: [0.4, 0, 0.2, 1],
+								},
+							}}
+							style={{
+								originX: 0,
+								originY: 0,
+							}}
+						>
+							{/* Video Player Container */}
 							<VideoPlayer
 								src={loaderData.videoSrc}
 								videoId={loaderData.video.id}
@@ -1039,169 +1211,717 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								activeTrackingObjectId={activeTrackingObjectId}
 								onActiveTrackingObjectChange={setActiveTrackingObjectId}
 								scale={loaderData.scale}
-								className="aspect-video"
 								isScaleCalibrationModeExternal={isScaleCalibrationMode}
 								onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+								onCurrentTimeChange={setCurrentVideoTime}
+								onSeekToFrameRef={(seekFn) => {
+									seekToFrameRef.current = seekFn
+								}}
 							/>
-						</div>
-					</div>
 
-					{/* Right Column: Sidebar */}
-					<div className="flex flex-col gap-4 lg:col-span-4">
-						{/* Analysis Dashboard */}
-						<div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-							<VideoAnalysisDashboard
-								trackingPoints={loaderData.trackingPoints}
-								scale={loaderData.scale}
-							/>
-						</div>
+							{/* Tools Bar - Step-based design */}
+							<div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2">
+										<span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+											Tools
+										</span>
+										<div className="h-6 w-px bg-slate-200" />
+										<Button
+											type="button"
+											variant={isScaleCalibrationMode ? 'default' : 'outline'}
+											size="default"
+											className="gap-2"
+											title="Set Scale"
+											onClick={() =>
+												setIsScaleCalibrationMode(!isScaleCalibrationMode)
+											}
+										>
+											<Icon name="file" className="h-4 w-4" />
+											Set Scale
+										</Button>
+										<Button
+											type="button"
+											variant="outline"
+											size="default"
+											className="gap-2"
+											title="Track Object"
+										>
+											<Icon name="crosshair-2" className="h-4 w-4" />
+											Track Object
+										</Button>
+										<div className="h-6 w-px bg-slate-200" />
+										<Button
+											type="button"
+											variant="outline"
+											size="default"
+											className="gap-2"
+											title={isFullWidthLayout ? 'Show Sidebar' : 'Full Width'}
+											onClick={() => {
+												const newLayout = !isFullWidthLayout
+												setIsFullWidthLayout(newLayout)
+												const formData = new FormData()
+												formData.append(
+													'layout',
+													newLayout ? 'full-width' : 'split',
+												)
+												void layoutFetcher.submit(formData, {
+													method: 'POST',
+													action: '/resources/layout-switch',
+												})
+											}}
+										>
+											<Icon
+												name={
+													isFullWidthLayout
+														? 'panel-right'
+														: 'panel-right-minimized'
+												}
+												className="h-4 w-4"
+											/>
+											{isFullWidthLayout ? 'Show Sidebar' : 'Full Width'}
+										</Button>
+									</div>
 
-						{/* Analysis Graph */}
-						<div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-							<Tabs defaultValue="position" className="flex h-full flex-col">
-								<div className="flex items-center justify-between rounded-t-xl border-b bg-slate-50 p-3">
-									<h3 className="text-sm font-semibold text-slate-800">
-										Analysis Graph
-									</h3>
-									<TabsList className="grid w-auto grid-cols-3">
-										<TabsTrigger value="position">Position</TabsTrigger>
-										<TabsTrigger value="velocity">Velocity</TabsTrigger>
-										<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
-									</TabsList>
+									{/* Object selector */}
+									<div className="flex items-center gap-2">
+										<DropdownMenu modal={false}>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="outline"
+													size="default"
+													className="gap-2"
+												>
+													{activeTrackingObjectId ? (
+														<>
+															<div
+																className="h-2 w-2 rounded-full"
+																style={{
+																	backgroundColor: getTrackingObjectColor(
+																		activeTrackingObjectId,
+																	),
+																}}
+															/>
+															<span className="text-xs">
+																{getTrackingObjectName(activeTrackingObjectId)}
+															</span>
+														</>
+													) : (
+														<>
+															<Icon name="crosshair-2" className="h-3 w-3" />
+															<span className="text-xs">Select Object</span>
+														</>
+													)}
+													<Icon name="chevron-down" className="h-3 w-3" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent
+												align="end"
+												className="w-64"
+												sideOffset={4}
+												alignOffset={0}
+											>
+												<DropdownMenuLabel>Tracking Objects</DropdownMenuLabel>
+												<DropdownMenuSeparator />
+												{optimisticTrackingObjects.length === 0 ? (
+													<DropdownMenuItem disabled>
+														<span className="text-xs text-slate-500">
+															No objects yet
+														</span>
+													</DropdownMenuItem>
+												) : (
+													optimisticTrackingObjects.map((obj) => (
+														<DropdownMenuItem
+															key={obj.id}
+															onClick={(e) => {
+																// Don't close dropdown or change active object when editing
+																if (editingObjectId === obj.id) {
+																	e.preventDefault()
+																	return
+																}
+																setActiveTrackingObjectId(obj.id)
+															}}
+															className="flex items-center gap-2"
+															onSelect={(e) => {
+																// Prevent dropdown from closing when editing
+																if (editingObjectId === obj.id) {
+																	e.preventDefault()
+																}
+															}}
+														>
+															<div
+																className="h-2 w-2 cursor-pointer rounded-full transition-all hover:ring-2 hover:ring-slate-300"
+																style={{
+																	backgroundColor: getTrackingObjectColor(
+																		obj.id,
+																	),
+																}}
+																onClick={(e) => handleColorCircleClick(e, obj)}
+																title="Click to change color"
+															/>
+															{editingObjectId === obj.id ? (
+																<Input
+																	type="text"
+																	value={editName}
+																	onChange={(e) => setEditName(e.target.value)}
+																	onKeyDown={(e) => {
+																		if (e.key === 'Enter') {
+																			e.preventDefault()
+																			e.stopPropagation()
+																			handleUpdateTrackingObject(obj.id)
+																		}
+																		if (e.key === 'Escape') {
+																			e.preventDefault()
+																			e.stopPropagation()
+																			setEditingObjectId(null)
+																			setEditName('')
+																			setEditColor('')
+																		}
+																	}}
+																	onFocus={(e) => e.stopPropagation()}
+																	onMouseDown={(e) => e.stopPropagation()}
+																	onClick={(e) => e.stopPropagation()}
+																	autoFocus
+																	placeholder="Name"
+																	className="h-6 flex-1 text-xs"
+																/>
+															) : (
+																<span
+																	className="flex-1 cursor-pointer"
+																	onClick={(e) => {
+																		e.stopPropagation()
+																		setActiveTrackingObjectId(obj.id)
+																	}}
+																	title="Click to select object"
+																>
+																	{getTrackingObjectName(obj.id)}
+																</span>
+															)}
+															{editingObjectId === obj.id ? (
+																<div className="flex items-center gap-1">
+																	<label
+																		className="relative cursor-pointer"
+																		onClick={(e) => e.stopPropagation()}
+																		onMouseDown={(e) => e.stopPropagation()}
+																	>
+																		<Input
+																			ref={(el) => setColorInputRef(obj.id, el)}
+																			type="color"
+																			value={
+																				editColor ||
+																				getTrackingObjectColor(obj.id)
+																			}
+																			onChange={(e) => {
+																				e.stopPropagation()
+																				const newColor = e.target.value
+																				setEditColor(newColor)
+																				// Update optimistic state immediately
+																				setOptimisticTrackingObjects((prev) =>
+																					prev.map((o) =>
+																						o.id === obj.id
+																							? { ...o, color: newColor }
+																							: o,
+																					),
+																				)
+																				// Save to server
+																				const formData: Record<string, string> =
+																					{
+																						intent: 'update-tracking-object',
+																						videoId: loaderData.video.id,
+																						trackingObjectId: obj.id,
+																						name: editName.trim(),
+																						color: newColor,
+																					}
+																				void trackingObjectsFetcher.submit(
+																					formData,
+																					{
+																						method: 'POST',
+																					},
+																				)
+																			}}
+																			className="sr-only"
+																			onClick={(e) => e.stopPropagation()}
+																			onFocus={(e) => e.stopPropagation()}
+																		/>
+																		<div
+																			className="h-6 w-6 cursor-pointer rounded border border-slate-300"
+																			style={{
+																				backgroundColor:
+																					editColor ||
+																					getTrackingObjectColor(obj.id),
+																			}}
+																			onClick={(e) => {
+																				e.stopPropagation()
+																				const colorInput =
+																					colorInputRefs.current.get(obj.id)
+																				colorInput?.click()
+																			}}
+																			title="Click to change color"
+																		/>
+																	</label>
+																	<Button
+																		size="sm"
+																		variant="ghost"
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			handleUpdateTrackingObject(obj.id)
+																		}}
+																	>
+																		<Icon name="check" className="h-3 w-3" />
+																	</Button>
+																	<Button
+																		size="sm"
+																		variant="ghost"
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			setEditingObjectId(null)
+																			setEditName('')
+																			setEditColor('')
+																		}}
+																	>
+																		<Icon name="cross-1" className="h-3 w-3" />
+																	</Button>
+																</div>
+															) : (
+																<div className="flex items-center gap-1">
+																	<Button
+																		size="sm"
+																		variant="ghost"
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			startEditing(obj)
+																		}}
+																	>
+																		<Icon name="pencil-1" className="h-3 w-3" />
+																	</Button>
+																	<Button
+																		size="sm"
+																		variant="ghost"
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			setDeleteObjectId(obj.id)
+																		}}
+																		className="text-red-600 hover:bg-red-50 hover:text-red-700"
+																	>
+																		<Icon name="trash" className="h-3 w-3" />
+																	</Button>
+																</div>
+															)}
+														</DropdownMenuItem>
+													))
+												)}
+												<DropdownMenuSeparator />
+												<DropdownMenuItem onClick={handleCreateTrackingObject}>
+													<Icon name="plus" className="mr-2 h-4 w-4" />
+													Create New Object
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</div>
 								</div>
-								<div className="flex-1 p-4">
-									<TabsContent
-										value="position"
-										className="mt-0 flex-1 overflow-hidden"
-									>
-										<PositionVsTimeGraph
-											trackingPoints={loaderData.trackingPoints}
-											trackingObjects={optimisticTrackingObjects}
-											scale={loaderData.scale}
-										/>
-									</TabsContent>
-									<TabsContent
-										value="velocity"
-										className="mt-0 flex-1 overflow-hidden"
-									>
-										<VelocityVsTimeGraph
-											trackingPoints={loaderData.trackingPoints}
-											trackingObjects={optimisticTrackingObjects}
-											scale={loaderData.scale}
-										/>
-									</TabsContent>
-									<TabsContent
-										value="acceleration"
-										className="mt-0 flex-1 overflow-hidden"
-									>
-										<AccelerationVsTimeGraph
-											trackingPoints={loaderData.trackingPoints}
-											trackingObjects={optimisticTrackingObjects}
-											scale={loaderData.scale}
-										/>
-									</TabsContent>
-								</div>
-							</Tabs>
-						</div>
-
-						{/* Data Points Table */}
-						<div className="flex max-h-[400px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-							<div className="flex items-center justify-between border-b bg-slate-50 p-3">
-								<h3 className="text-sm font-semibold text-slate-800">
-									Data Points
-								</h3>
-								<span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">
-									{loaderData.trackingPoints.length} pts
-								</span>
 							</div>
-							<ScrollArea className="flex-1">
-								<table className="w-full text-left text-xs">
-									<thead className="sticky top-0 z-10 border-b bg-slate-50/95 font-medium text-slate-500 backdrop-blur">
-										<tr>
-											<th className="px-4 py-2">Frame</th>
-											<th className="px-4 py-2">Time (s)</th>
-											<th className="px-4 py-2">X (m)</th>
-											<th className="px-4 py-2">Y (m)</th>
-										</tr>
-									</thead>
-									<tbody className="divide-y text-slate-700">
-										{sortedPoints.map((point, index) => {
-											const time = point.frame / 30
-											const xMeters = loaderData.scale
-												? point.x / loaderData.scale.pixelsPerMeter
-												: point.x
-											const yMeters = loaderData.scale
-												? point.y / loaderData.scale.pixelsPerMeter
-												: point.y
-											const isCurrent =
-												index ===
-												sortedPoints.findIndex((p) => p.frame === currentFrame)
+						</motion.div>
 
-											return (
-												<tr
-													key={point.id}
-													className={
-														isCurrent
-															? 'bg-primary-light/20 ring-primary-light ring-1 ring-inset'
-															: index % 2 === 0
-																? 'bg-blue-50/50'
-																: ''
+						{/* Analytics Section - Full width mode */}
+						<motion.div
+							className="w-full"
+							layout
+							initial={false}
+							transition={{
+								layout: {
+									duration: 0.4,
+									ease: [0.4, 0, 0.2, 1],
+								},
+							}}
+						>
+							<FullAnalyticsSection />
+						</motion.div>
+					</div>
+				) : (
+					/* Split Layout */
+					<div className="flex flex-col gap-6">
+						{/* Top Row: Video Player and Sidebar */}
+						<div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+							{/* Video Player Column */}
+							<motion.div
+								className="space-y-4 lg:col-span-8"
+								layout
+								layoutId="video-player-container"
+								initial={false}
+								transition={{
+									layout: {
+										duration: 0.4,
+										ease: [0.4, 0, 0.2, 1],
+									},
+								}}
+								style={{
+									originX: 0,
+									originY: 0,
+								}}
+							>
+								{/* Video Player Container */}
+								<VideoPlayer
+									src={loaderData.videoSrc}
+									videoId={loaderData.video.id}
+									trackingPoints={loaderData.trackingPoints}
+									trackingObjects={optimisticTrackingObjects}
+									activeTrackingObjectId={activeTrackingObjectId}
+									onActiveTrackingObjectChange={setActiveTrackingObjectId}
+									scale={loaderData.scale}
+									isScaleCalibrationModeExternal={isScaleCalibrationMode}
+									onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+									onCurrentTimeChange={setCurrentVideoTime}
+									onSeekToFrameRef={(seekFn) => {
+										seekToFrameRef.current = seekFn
+									}}
+								/>
+
+								{/* Tools Bar - Step-based design */}
+								<div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+									<div className="flex items-center justify-between">
+										<div className="flex items-center gap-2">
+											<span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+												Tools
+											</span>
+											<div className="h-6 w-px bg-slate-200" />
+											<Button
+												type="button"
+												variant={isScaleCalibrationMode ? 'default' : 'outline'}
+												size="default"
+												className="gap-2"
+												title="Set Scale"
+												onClick={() =>
+													setIsScaleCalibrationMode(!isScaleCalibrationMode)
+												}
+											>
+												<Icon name="file" className="h-4 w-4" />
+												Set Scale
+											</Button>
+											<Button
+												type="button"
+												variant="outline"
+												size="default"
+												className="gap-2"
+												title="Track Object"
+											>
+												<Icon name="crosshair-2" className="h-4 w-4" />
+												Track Object
+											</Button>
+											<div className="h-6 w-px bg-slate-200" />
+											<Button
+												type="button"
+												variant="outline"
+												size="default"
+												className="gap-2"
+												title={
+													isFullWidthLayout ? 'Show Sidebar' : 'Full Width'
+												}
+												onClick={() => {
+													const newLayout = !isFullWidthLayout
+													setIsFullWidthLayout(newLayout)
+													const formData = new FormData()
+													formData.append(
+														'layout',
+														newLayout ? 'full-width' : 'split',
+													)
+													void layoutFetcher.submit(formData, {
+														method: 'POST',
+														action: '/resources/layout-switch',
+													})
+												}}
+											>
+												<Icon
+													name={
+														isFullWidthLayout
+															? 'panel-right'
+															: 'panel-right-minimized'
 													}
+													className="h-4 w-4"
+												/>
+												{isFullWidthLayout ? 'Show Sidebar' : 'Full Width'}
+											</Button>
+										</div>
+
+										{/* Object selector */}
+										<div className="flex items-center gap-2">
+											<DropdownMenu modal={false}>
+												<DropdownMenuTrigger asChild>
+													<Button
+														variant="outline"
+														size="default"
+														className="gap-2"
+													>
+														{activeTrackingObjectId ? (
+															<>
+																<div
+																	className="h-2 w-2 rounded-full"
+																	style={{
+																		backgroundColor: getTrackingObjectColor(
+																			activeTrackingObjectId,
+																		),
+																	}}
+																/>
+																<span className="text-xs">
+																	{getTrackingObjectName(
+																		activeTrackingObjectId,
+																	)}
+																</span>
+															</>
+														) : (
+															<>
+																<Icon name="crosshair-2" className="h-3 w-3" />
+																<span className="text-xs">Select Object</span>
+															</>
+														)}
+														<Icon name="chevron-down" className="h-3 w-3" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent
+													align="end"
+													className="w-64"
+													sideOffset={4}
+													alignOffset={0}
 												>
-													<td
-														className={`px-4 py-2 font-mono ${
-															isCurrent
-																? 'text-primary font-bold'
-																: 'text-slate-400'
-														}`}
+													<DropdownMenuLabel>
+														Tracking Objects
+													</DropdownMenuLabel>
+													<DropdownMenuSeparator />
+													{optimisticTrackingObjects.length === 0 ? (
+														<DropdownMenuItem disabled>
+															<span className="text-xs text-slate-500">
+																No objects yet
+															</span>
+														</DropdownMenuItem>
+													) : (
+														optimisticTrackingObjects.map((obj) => (
+															<DropdownMenuItem
+																key={obj.id}
+																onClick={(e) => {
+																	if (editingObjectId === obj.id) {
+																		e.preventDefault()
+																		return
+																	}
+																	setActiveTrackingObjectId(obj.id)
+																}}
+																className="flex items-center gap-2"
+																onSelect={(e) => {
+																	if (editingObjectId === obj.id) {
+																		e.preventDefault()
+																	}
+																}}
+															>
+																<div
+																	className="h-2 w-2 cursor-pointer rounded-full transition-all hover:ring-2 hover:ring-slate-300"
+																	style={{
+																		backgroundColor: getTrackingObjectColor(
+																			obj.id,
+																		),
+																	}}
+																	onClick={(e) =>
+																		handleColorCircleClick(e, obj)
+																	}
+																	title="Click to change color"
+																/>
+																{editingObjectId === obj.id ? (
+																	<Input
+																		type="text"
+																		value={editName}
+																		onChange={(e) =>
+																			setEditName(e.target.value)
+																		}
+																		onKeyDown={(e) => {
+																			if (e.key === 'Enter') {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				handleUpdateTrackingObject(obj.id)
+																			}
+																			if (e.key === 'Escape') {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				setEditingObjectId(null)
+																				setEditName('')
+																				setEditColor('')
+																			}
+																		}}
+																		onFocus={(e) => e.stopPropagation()}
+																		onMouseDown={(e) => e.stopPropagation()}
+																		onClick={(e) => e.stopPropagation()}
+																		autoFocus
+																		placeholder="Name"
+																		className="h-6 flex-1 text-xs"
+																	/>
+																) : (
+																	<span
+																		className="flex-1 cursor-pointer"
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			setActiveTrackingObjectId(obj.id)
+																		}}
+																		title="Click to select object"
+																	>
+																		{getTrackingObjectName(obj.id)}
+																	</span>
+																)}
+																{editingObjectId === obj.id ? (
+																	<div className="flex items-center gap-1">
+																		<label
+																			className="relative cursor-pointer"
+																			onClick={(e) => e.stopPropagation()}
+																			onMouseDown={(e) => e.stopPropagation()}
+																		>
+																			<Input
+																				ref={(el) =>
+																					setColorInputRef(obj.id, el)
+																				}
+																				type="color"
+																				value={
+																					editColor ||
+																					getTrackingObjectColor(obj.id)
+																				}
+																				onChange={(e) => {
+																					e.stopPropagation()
+																					const newColor = e.target.value
+																					setEditColor(newColor)
+																					// Update optimistic state immediately
+																					setOptimisticTrackingObjects((prev) =>
+																						prev.map((o) =>
+																							o.id === obj.id
+																								? { ...o, color: newColor }
+																								: o,
+																						),
+																					)
+																					// Save to server
+																					const formData: Record<
+																						string,
+																						string
+																					> = {
+																						intent: 'update-tracking-object',
+																						videoId: loaderData.video.id,
+																						trackingObjectId: obj.id,
+																						name: editName.trim(),
+																						color: newColor,
+																					}
+																					void trackingObjectsFetcher.submit(
+																						formData,
+																						{
+																							method: 'POST',
+																						},
+																					)
+																				}}
+																				className="sr-only"
+																				onClick={(e) => e.stopPropagation()}
+																				onFocus={(e) => e.stopPropagation()}
+																			/>
+																			<div
+																				className="h-6 w-6 cursor-pointer rounded border border-slate-300"
+																				style={{
+																					backgroundColor:
+																						editColor ||
+																						getTrackingObjectColor(obj.id),
+																				}}
+																				onClick={(e) => {
+																					e.stopPropagation()
+																					const colorInput =
+																						colorInputRefs.current.get(obj.id)
+																					colorInput?.click()
+																				}}
+																				title="Click to change color"
+																			/>
+																		</label>
+																		<Button
+																			size="sm"
+																			variant="ghost"
+																			onClick={(e) => {
+																				e.stopPropagation()
+																				handleUpdateTrackingObject(obj.id)
+																			}}
+																		>
+																			<Icon name="check" className="h-3 w-3" />
+																		</Button>
+																		<Button
+																			size="sm"
+																			variant="ghost"
+																			onClick={(e) => {
+																				e.stopPropagation()
+																				setEditingObjectId(null)
+																				setEditName('')
+																				setEditColor('')
+																			}}
+																		>
+																			<Icon
+																				name="cross-1"
+																				className="h-3 w-3"
+																			/>
+																		</Button>
+																	</div>
+																) : (
+																	<div className="flex items-center gap-1">
+																		<Button
+																			size="sm"
+																			variant="ghost"
+																			onClick={(e) => {
+																				e.stopPropagation()
+																				startEditing(obj)
+																			}}
+																		>
+																			<Icon
+																				name="pencil-1"
+																				className="h-3 w-3"
+																			/>
+																		</Button>
+																		<Button
+																			size="sm"
+																			variant="ghost"
+																			onClick={(e) => {
+																				e.stopPropagation()
+																				setDeleteObjectId(obj.id)
+																			}}
+																			className="text-red-600 hover:bg-red-50 hover:text-red-700"
+																		>
+																			<Icon name="trash" className="h-3 w-3" />
+																		</Button>
+																	</div>
+																)}
+															</DropdownMenuItem>
+														))
+													)}
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														onClick={handleCreateTrackingObject}
 													>
-														{point.frame}
-													</td>
-													<td
-														className={`px-4 py-2 font-mono ${
-															isCurrent ? 'font-bold' : ''
-														}`}
-													>
-														{time.toFixed(2)}
-													</td>
-													<td
-														className={`px-4 py-2 font-mono ${
-															isCurrent ? 'font-bold' : ''
-														}`}
-													>
-														{loaderData.scale
-															? xMeters.toFixed(2)
-															: point.x.toFixed(2)}
-													</td>
-													<td
-														className={`px-4 py-2 font-mono ${
-															isCurrent ? 'font-bold' : ''
-														}`}
-													>
-														{loaderData.scale
-															? yMeters.toFixed(2)
-															: point.y.toFixed(2)}
-													</td>
-												</tr>
-											)
-										})}
-										{loaderData.trackingPoints.length === 0 && (
-											<tr>
-												<td
-													colSpan={4}
-													className="px-4 py-8 text-center text-sm text-slate-500"
-												>
-													No tracking points yet. Click on the video to start
-													tracking.
-												</td>
-											</tr>
-										)}
-									</tbody>
-								</table>
-							</ScrollArea>
+														<Icon name="plus" className="mr-2 h-4 w-4" />
+														Create New Object
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</div>
+									</div>
+								</div>
+							</motion.div>
+
+							{/* Right Column: Metrics and Data Table */}
+							<motion.div
+								className="lg:col-span-4"
+								initial={{ opacity: 0, x: 20 }}
+								animate={{ opacity: 1, x: 0 }}
+								transition={{ duration: 0.3, ease: 'easeInOut' }}
+							>
+								<MetricsAndDataTable />
+							</motion.div>
+						</div>
+
+						{/* Graph Section - Below video player in split mode */}
+						<div className="lg:col-span-8">
+							<motion.div
+								initial={{ opacity: 0, y: 20 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ duration: 0.3, ease: 'easeInOut' }}
+							>
+								<GraphSection />
+							</motion.div>
 						</div>
 					</div>
-				</div>
+				)}
 			</div>
 
 			{/* Delete Tracking Object Confirmation Dialog */}
@@ -1268,6 +1988,77 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 					</AlertDialogContent>
 				</AlertDialog>
 			)}
-		</>
+			{showCreateObjectDialog && (
+				<AlertDialog
+					open={showCreateObjectDialog}
+					onOpenChange={(open: boolean) => {
+						setShowCreateObjectDialog(open)
+						if (!open) {
+							setNewObjectName('')
+							setNewObjectColor('')
+						}
+					}}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Create New Tracking Object</AlertDialogTitle>
+							<AlertDialogDescription>
+								Set a name and color for the new tracking object.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<div className="flex flex-col gap-4 py-4">
+							<div className="flex flex-col gap-2">
+								<label
+									htmlFor="new-object-name"
+									className="text-sm font-medium text-slate-700"
+								>
+									Name
+								</label>
+								<Input
+									id="new-object-name"
+									type="text"
+									value={newObjectName}
+									onChange={(e) => setNewObjectName(e.target.value)}
+									placeholder="Object name (optional)"
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault()
+											handleCreateObjectSubmit()
+										}
+									}}
+									autoFocus
+								/>
+							</div>
+							<div className="flex flex-col gap-2">
+								<label
+									htmlFor="new-object-color"
+									className="text-sm font-medium text-slate-700"
+								>
+									Color
+								</label>
+								<div className="flex items-center gap-3">
+									<Input
+										id="new-object-color"
+										type="color"
+										value={newObjectColor || '#3b82f6'}
+										onChange={(e) => setNewObjectColor(e.target.value)}
+										className="h-10 w-20 cursor-pointer"
+									/>
+									<span className="text-sm text-slate-500">
+										{newObjectColor || 'Default color will be generated'}
+									</span>
+								</div>
+							</div>
+						</div>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction onClick={handleCreateObjectSubmit}>
+								Create Object
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			)}
+		</div>
 	)
 }
