@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useFetcher } from 'react-router'
-import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 
@@ -39,6 +38,8 @@ interface VideoPlayerProps {
 	scale?: Scale | null
 	onScaleCalibrationModeChange?: (isActive: boolean) => void
 	isScaleCalibrationModeExternal?: boolean
+	onCurrentTimeChange?: (currentTime: number) => void
+	onSeekToFrameRef?: (seekFn: (frame: number) => void) => void
 }
 
 function formatTime(seconds: number): string {
@@ -47,6 +48,28 @@ function formatTime(seconds: number): string {
 	const secs = Math.floor(seconds % 60)
 	const milliseconds = Math.floor((seconds % 1) * 1000)
 	return `${mins}:${secs.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
+}
+
+// Helper function to convert color to transparent version
+function convertColorToTransparent(color: string, opacity: number): string {
+	// Handle HSL colors (e.g., "hsl(200, 70%, 50%)")
+	if (color.startsWith('hsl')) {
+		return color.replace(')', `, ${opacity})`).replace('hsl', 'hsla')
+	}
+	// Handle hex colors (e.g., "#ff0000")
+	if (color.startsWith('#')) {
+		const hex = color.slice(1)
+		const r = parseInt(hex.slice(0, 2), 16)
+		const g = parseInt(hex.slice(2, 4), 16)
+		const b = parseInt(hex.slice(4, 6), 16)
+		return `rgba(${r}, ${g}, ${b}, ${opacity})`
+	}
+	// Handle rgb colors (e.g., "rgb(255, 0, 0)")
+	if (color.startsWith('rgb')) {
+		return color.replace(')', `, ${opacity})`).replace('rgb', 'rgba')
+	}
+	// Fallback: return original color if format is unknown
+	return color
 }
 
 export function VideoPlayer({
@@ -60,6 +83,8 @@ export function VideoPlayer({
 	scale: initialScale = null,
 	onScaleCalibrationModeChange,
 	isScaleCalibrationModeExternal = false,
+	onCurrentTimeChange,
+	onSeekToFrameRef,
 }: VideoPlayerProps) {
 	const videoRef = useRef<HTMLVideoElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -238,7 +263,8 @@ export function VideoPlayer({
 		const video = videoRef.current
 		if (!video) return
 		setCurrentTime(video.currentTime)
-	}, [])
+		onCurrentTimeChange?.(video.currentTime)
+	}, [onCurrentTimeChange])
 
 	const handleLoadedMetadata = useCallback(() => {
 		const video = videoRef.current
@@ -341,11 +367,20 @@ export function VideoPlayer({
 			const frameTime = frameIndex / fps
 			video.currentTime = frameTime
 			setCurrentTime(frameTime)
+			onCurrentTimeChange?.(frameTime)
 			setIsPlaying(false)
 			video.pause()
 		},
-		[duration],
+		[duration, onCurrentTimeChange],
 	)
+
+	// Expose goToFrame to parent via callback ref
+	useEffect(() => {
+		if (onSeekToFrameRef) {
+			// Call the callback with the seek function
+			onSeekToFrameRef(goToFrame)
+		}
+	}, [goToFrame, onSeekToFrameRef])
 
 	// Sync frame input with current frame
 	useEffect(() => {
@@ -595,6 +630,9 @@ export function VideoPlayer({
 					method: 'POST',
 				})
 			}
+
+			// Auto-advance to next frame after placing point
+			goToNextFrame()
 		},
 		[
 			videoId,
@@ -603,6 +641,7 @@ export function VideoPlayer({
 			activeTrackingObjectId,
 			localTrackingPoints,
 			isScaleCalibrationMode,
+			goToNextFrame,
 			convertCanvasToVideoCoords,
 			scaleStartPoint,
 			scaleEndPoint,
@@ -802,7 +841,9 @@ export function VideoPlayer({
 					if (objectPoints.length < 2) return // Need at least 2 points for a line
 
 					// Use tracking object color if available, otherwise generate from ID
-					const trajectoryColor = getTrackingObjectColor(trackingObjectId)
+					const baseColor = getTrackingObjectColor(trackingObjectId)
+					// Convert to slightly transparent version (70% opacity)
+					const trajectoryColor = convertColorToTransparent(baseColor, 0.7)
 
 					ctx.strokeStyle = trajectoryColor
 					ctx.lineWidth = 2
@@ -830,7 +871,8 @@ export function VideoPlayer({
 
 				// Use different color/style for current frame point
 				const isCurrentFrame = point.frame === frame
-				const pointColor = isCurrentFrame ? '#ff0000' : '#ff6666'
+				// Use tracking object color for the point
+				const pointColor = getTrackingObjectColor(point.trackingObjectId)
 				const pointSize = isCurrentFrame ? 6 : 4
 
 				// Draw point
@@ -931,12 +973,14 @@ export function VideoPlayer({
 	}, [fetcher?.data, activeTrackingObjectId, setActiveTrackingObjectId])
 
 	return (
-		<div className={className}>
-			<div className="relative" ref={containerRef}>
+		<div
+			className={`relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 shadow-lg ${className}`}
+		>
+			<div className="relative aspect-video" ref={containerRef}>
 				<video
 					ref={videoRef}
 					src={src}
-					className="w-full"
+					className="h-full w-full"
 					preload="metadata"
 					onTimeUpdate={handleTimeUpdate}
 					onLoadedMetadata={handleLoadedMetadata}
@@ -962,6 +1006,42 @@ export function VideoPlayer({
 					/>
 				)}
 
+				{/* Scale line indicator */}
+				{scale && (
+					<div className="absolute top-4 left-4 rounded-lg bg-green-500/20 px-3 py-1.5 backdrop-blur-sm">
+						<div className="flex items-center gap-2">
+							<div className="h-2 w-2 rounded-full bg-green-500" />
+							<span className="text-xs font-medium text-white">
+								Scale: {scale.distanceMeters.toFixed(2)}m
+							</span>
+						</div>
+					</div>
+				)}
+
+				{/* Active tracking indicator */}
+				{activeTrackingObjectId && (
+					<div
+						className="absolute top-4 right-4 rounded-lg px-3 py-1.5 backdrop-blur-sm"
+						style={{
+							backgroundColor: `${getTrackingObjectColor(activeTrackingObjectId)}33`,
+						}}
+					>
+						<div className="flex items-center gap-2">
+							<div
+								className="h-2 w-2 animate-pulse rounded-full"
+								style={{
+									backgroundColor: getTrackingObjectColor(
+										activeTrackingObjectId,
+									),
+								}}
+							/>
+							<span className="text-xs font-medium text-white">
+								Tracking: {getTrackingObjectName(activeTrackingObjectId)}
+							</span>
+						</div>
+					</div>
+				)}
+
 				{/* Scale Input Overlay - shown when both points are set */}
 				{isScaleCalibrationMode && scaleStartPoint && scaleEndPoint && (
 					<ScaleInputOverlay
@@ -979,136 +1059,96 @@ export function VideoPlayer({
 				)}
 			</div>
 
-			{/* Controls Below Video */}
-			<div className="mt-4 space-y-2 px-4 pb-4">
-				{/* Seek bar */}
-				<div className="group/scrubber mb-3 flex items-center gap-3">
-					<span className="w-12 text-right font-mono text-[10px] text-slate-600">
-						{formatTime(currentTime)}
-					</span>
-					<div className="relative flex flex-1 cursor-pointer items-center">
-						{/* Progress bar background */}
-						<div
-							className="absolute h-1 w-full rounded-full transition-all group-hover/scrubber:h-1.5"
-							style={{
-								backgroundColor: 'var(--player-progress-bg)',
-							}}
-						/>
-						{/* Timeline markers for tracked frames */}
-						{localTrackingPoints.length > 0 &&
-							duration > 0 &&
-							Array.from(new Set(localTrackingPoints.map((p) => p.frame))).map(
-								(frame) => {
+			{/* Enhanced Video Controls */}
+			<div className="border-t border-slate-700 bg-slate-800/50 p-4 backdrop-blur-sm">
+				{/* Timeline with markers */}
+				<div className="mb-4">
+					<div className="relative flex items-center gap-3">
+						<span className="w-16 text-right font-mono text-xs text-slate-300">
+							{formatTime(currentTime)}
+						</span>
+						<div className="relative flex flex-1 cursor-pointer items-center">
+							{/* Timeline background */}
+							<div className="absolute h-2 w-full rounded-full bg-slate-700" />
+							{/* Timeline markers for tracked frames */}
+							{localTrackingPoints.length > 0 &&
+								duration > 0 &&
+								Array.from(
+									new Set(localTrackingPoints.map((p) => p.frame)),
+								).map((frame) => {
 									const frameTime = frame / 30 // Assuming 30fps
 									const position = (frameTime / duration) * 100
 									return (
 										<div
 											key={frame}
-											className="absolute top-0 h-1 w-0.5 rounded-sm opacity-60 transition-all hover:h-3 hover:bg-[var(--data-select)] hover:opacity-100"
+											className="absolute top-0 h-2 w-0.5 bg-blue-400"
 											style={{
 												left: `${position}%`,
-												backgroundColor: 'var(--data-position)',
 												transform: 'translateX(-50%)',
 											}}
 											title={`Frame ${frame + 1}`}
 										/>
 									)
-								},
-							)}
-						{/* Progress bar filled portion - green when tracking, primary when not */}
-						<div
-							className="absolute h-1 rounded-full transition-all group-hover/scrubber:h-1.5"
-							style={{
-								width: `${
-									duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
-								}%`,
-								backgroundColor:
-									localTrackingPoints.length > 0
-										? 'var(--data-position)'
-										: 'var(--primary)',
-								// No transition for width during playback - update immediately for smoothness
-								// Only transition background color changes
-								transition: isSeeking
-									? 'none'
-									: isPlaying
-										? 'background-color 0.2s ease'
-										: 'width 0.05s linear, background-color 0.2s ease',
-							}}
-						/>
-						<input
-							type="range"
-							min="0"
-							max={duration || 0}
-							value={seekTime ?? currentTime}
-							onChange={handleSeek}
-							onInput={handleSeekInput}
-							onMouseDown={handleSeekStart}
-							onMouseUp={handleSeekEnd}
-							onTouchStart={handleSeekStart}
-							onTouchEnd={handleSeekEnd}
-							step="0.0001"
-							className="absolute z-10 h-3 w-full cursor-pointer appearance-none bg-transparent opacity-0"
-							aria-label="Video seek"
-						/>
-						{/* Scrubber handle */}
-						<div
-							className="pointer-events-none absolute h-3 w-3 rounded-full border-2 bg-white shadow transition-all group-hover/scrubber:scale-[1.3] group-hover/scrubber:border-[var(--data-select)] group-hover/scrubber:shadow-[0_0_0_4px_var(--data-select)/0.2]"
-							style={{
-								left: `${
-									duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
-								}%`,
-								transform: 'translateX(-50%)',
-								borderColor:
-									localTrackingPoints.length > 0
-										? 'var(--data-position)'
-										: 'var(--primary)',
-								// No transition for position during playback - update immediately for smoothness
-								// Only transition border color changes
-								transition: isSeeking
-									? 'none'
-									: isPlaying
-										? 'border-color 0.2s ease'
-										: 'left 0.05s linear, border-color 0.2s ease',
-							}}
-						/>
+								})}
+							{/* Progress bar filled portion - green when tracking */}
+							<div
+								className="absolute top-0 h-2 rounded-full bg-green-500"
+								style={{
+									width: `${
+										duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
+									}%`,
+									transition: isSeeking
+										? 'none'
+										: isPlaying
+											? 'none'
+											: 'width 0.05s linear',
+								}}
+							/>
+							<input
+								type="range"
+								min="0"
+								max={duration || 0}
+								value={seekTime ?? currentTime}
+								onChange={handleSeek}
+								onInput={handleSeekInput}
+								onMouseDown={handleSeekStart}
+								onMouseUp={handleSeekEnd}
+								onTouchStart={handleSeekStart}
+								onTouchEnd={handleSeekEnd}
+								step="0.0001"
+								className="absolute z-10 h-3 w-full cursor-pointer appearance-none bg-transparent opacity-0"
+								aria-label="Video seek"
+							/>
+							{/* Scrubber handle */}
+							<div
+								className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-white bg-green-500 shadow-lg"
+								style={{
+									left: `${
+										duration ? ((seekTime ?? currentTime) / duration) * 100 : 0
+									}%`,
+									transform: 'translate(-50%, 20%)',
+									transition: isSeeking
+										? 'none'
+										: isPlaying
+											? 'none'
+											: 'left 0.05s linear',
+								}}
+							/>
+						</div>
+						<span className="w-16 font-mono text-xs text-slate-300">
+							{formatTime(duration)}
+						</span>
 					</div>
-					<span className="w-12 font-mono text-[10px] text-slate-600">
-						{formatTime(duration)}
-					</span>
 				</div>
 
-				{/* Controls */}
-				<div className="grid grid-cols-3 items-center gap-4">
-					{/* Left spacer or tracking indicator */}
+				{/* Control buttons - Larger, unified styling */}
+				<div className="flex items-center justify-between">
+					{/* Left: Tracking controls */}
 					<div className="flex items-center gap-2">
-						{activeTrackingObjectId && (
-							<div
-								className="flex items-center gap-2 rounded-2xl px-3 py-1.5"
-								style={{
-									backgroundColor: getTrackingObjectColor(
-										activeTrackingObjectId,
-									),
-									color: 'white',
-								}}
-							>
-								<div
-									className="h-2 w-2 rounded-full"
-									style={{
-										backgroundColor: 'white',
-										animation: 'pulse 2s ease-in-out infinite',
-									}}
-								/>
-								<span className="text-xs font-medium">
-									Tracking: {getTrackingObjectName(activeTrackingObjectId)}
-								</span>
-							</div>
-						)}
 						{/* Trajectory path toggle */}
 						{localTrackingPoints.length > 0 && (
-							<Button
+							<button
 								type="button"
-								variant="ghost"
-								size="sm"
 								onClick={() => setShowTrajectoryPaths(!showTrajectoryPaths)}
 								aria-label={
 									showTrajectoryPaths
@@ -1120,49 +1160,36 @@ export function VideoPlayer({
 										? 'Hide trajectory paths'
 										: 'Show trajectory paths'
 								}
-								className={`h-8 rounded-lg border px-3 text-xs transition-all hover:shadow-sm ${
-									showTrajectoryPaths
-										? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
-										: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-								}`}
+								className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-700"
 							>
-								<Icon name="crosshair-2" className="mr-1.5 h-3.5 w-3.5" />
+								<Icon name="crosshair-2" className="h-4 w-4" />
 								{showTrajectoryPaths ? 'Hide Path' : 'Show Path'}
-							</Button>
+							</button>
 						)}
 					</div>
-					{/* Centered controls */}
-					<div className="flex items-center justify-center gap-1">
-						{/* Move back 3 seconds */}
-						<Button
+
+					{/* Center: Playback controls */}
+					<div className="flex items-center gap-1">
+						<button
 							type="button"
-							variant="ghost"
-							size="icon"
 							onClick={seekBackward}
 							aria-label="Seek backward 3 seconds"
 							title="Seek backward 3 seconds"
-							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
+							className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
 						>
 							<Icon name="double-arrow-left" className="h-6 w-6" />
-						</Button>
-						{/* Move back 1 frame */}
-						<Button
+						</button>
+						<button
 							type="button"
-							variant="ghost"
-							size="icon"
 							onClick={goToPreviousFrame}
 							aria-label="Previous frame"
 							title="Previous frame"
-							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
+							className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
 						>
 							<Icon name="chevron-left" className="h-6 w-6" />
-						</Button>
-						{/* Play/Pause/Restart button */}
-						<Button
+						</button>
+						<button
 							type="button"
-							variant="default"
-							size="icon"
-							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2] active:bg-[var(--primary-hover)]"
 							onClick={handlePlayPause}
 							aria-label={
 								currentTime >= duration && duration > 0
@@ -1178,46 +1205,42 @@ export function VideoPlayer({
 										? 'Pause'
 										: 'Play'
 							}
+							className="rounded-full bg-white p-3 text-slate-900 shadow-lg transition-transform hover:scale-105"
 						>
 							{currentTime >= duration && duration > 0 ? (
-								<Icon name="reload" />
+								<Icon name="reload" className="h-8 w-8" />
 							) : isPlaying ? (
-								<Icon name="pause" />
+								<Icon name="pause" className="h-8 w-8" />
 							) : (
-								<Icon name="play" className="fill-current" />
+								<Icon name="play" className="h-8 w-8 fill-current" />
 							)}
-						</Button>
-						{/* Move forward 1 frame */}
-						<Button
+						</button>
+						<button
 							type="button"
-							variant="ghost"
-							size="icon"
 							onClick={goToNextFrame}
 							aria-label="Next frame"
 							title="Next frame"
-							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
+							className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
 						>
 							<Icon name="chevron-right" className="h-6 w-6" />
-						</Button>
-						{/* Move forward 3 seconds */}
-						<Button
+						</button>
+						<button
 							type="button"
-							variant="ghost"
-							size="icon"
 							onClick={seekForward}
 							aria-label="Seek forward 3 seconds"
 							title="Seek forward 3 seconds"
-							className="cursor-pointer rounded-full bg-white text-[var(--player-bg)] transition-all hover:bg-[var(--primary)] hover:text-white hover:shadow-[0_0_0_3px_var(--primary)/0.2]"
+							className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
 						>
 							<Icon name="double-arrow-right" className="h-6 w-6" />
-						</Button>
+						</button>
 					</div>
-					{/* Frame display on the right */}
-					<div className="flex items-center justify-end gap-2 pl-4">
-						<div className="flex flex-col items-center gap-1">
-							<span className="text-[9px] font-bold tracking-wider text-slate-500 uppercase">
+
+					{/* Right: Frame display */}
+					<div className="flex items-center gap-2">
+						<div className="text-center">
+							<div className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
 								Frame
-							</span>
+							</div>
 							<div className="flex items-center gap-1">
 								<form
 									onSubmit={handleFrameInputSubmit}
@@ -1234,12 +1257,12 @@ export function VideoPlayer({
 												handleFrameInputSubmit(e)
 											}
 										}}
-										className="h-7 w-16 text-center font-mono text-xs text-white"
+										className="h-8 w-16 rounded border border-slate-600 bg-slate-700 text-center font-mono text-sm text-white"
 										aria-label="Frame number"
 									/>
 								</form>
-								<span className="text-xs text-slate-500">/</span>
-								<span className="font-mono text-xs text-slate-500">
+								<span className="text-xs text-slate-400">/</span>
+								<span className="font-mono text-xs text-slate-400">
 									{duration ? Math.ceil(duration * 30) : 0}
 								</span>
 							</div>
