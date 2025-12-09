@@ -41,6 +41,7 @@ import { useLayout } from '#app/routes/resources/layout-switch.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getVideoSrc } from '#app/utils/misc.tsx'
+import { getActiveTrackingObjectId } from '#app/utils/tracking-object-selection.server.ts'
 import { type Route } from './+types/$videoId.ts'
 
 const FPS = 30 // Frames per second for time calculation
@@ -149,7 +150,19 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
 	const videoSrc = getVideoSrc(video.url)
 
-	return { video, videoSrc, trackingPoints, trackingObjects, scale }
+	const activeTrackingObjectId = await getActiveTrackingObjectId(
+		request,
+		video.id,
+	)
+
+	return {
+		video,
+		videoSrc,
+		trackingPoints,
+		trackingObjects,
+		scale,
+		activeTrackingObjectId,
+	}
 }
 
 export function generateTrackingDataCSV(
@@ -620,7 +633,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
 	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
 		string | null
-	>(null)
+	>(loaderData.activeTrackingObjectId ?? null)
 	const [editingObjectId, setEditingObjectId] = useState<string | null>(null)
 	const [editName, setEditName] = useState('')
 	const [editColor, setEditColor] = useState('')
@@ -640,6 +653,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const layoutFetcher = useFetcher()
 	const trackingObjectsFetcher = useFetcher()
 	const clearPointsFetcher = useFetcher()
+	const trackingObjectSelectionFetcher = useFetcher()
 	const revalidator = useRevalidator()
 
 	// Sync layout state with preference changes
@@ -656,6 +670,26 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	useEffect(() => {
 		setOptimisticTrackingObjects(loaderData.trackingObjects)
 	}, [loaderData.trackingObjects])
+
+	// Sync active tracking object ID with loader data when it changes (e.g., navigating to different video)
+	useEffect(() => {
+		setActiveTrackingObjectId(loaderData.activeTrackingObjectId ?? null)
+	}, [loaderData.activeTrackingObjectId])
+
+	// Helper to update active tracking object ID and persist to session
+	const updateActiveTrackingObjectId = (trackingObjectId: string | null) => {
+		setActiveTrackingObjectId(trackingObjectId)
+		void trackingObjectSelectionFetcher.submit(
+			{
+				videoId: loaderData.video.id,
+				trackingObjectId: trackingObjectId ?? '',
+			},
+			{
+				method: 'POST',
+				action: '/resources/tracking-object-selection',
+			},
+		)
+	}
 
 	// Helper to get tracking object name (uses optimistic state)
 	const getTrackingObjectName = (id: string): string => {
@@ -822,7 +856,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		setDeleteObjectId(null)
 		// Clear active tracking object if it was deleted
 		if (activeTrackingObjectId === id) {
-			setActiveTrackingObjectId(null)
+			updateActiveTrackingObjectId(null)
 		}
 	}
 
@@ -836,7 +870,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		)
 		setShowClearPointsDialog(false)
 		// Clear active tracking object since all points are deleted
-		setActiveTrackingObjectId(null)
+		updateActiveTrackingObjectId(null)
 	}
 
 	// Sort points by frame for display
@@ -1209,7 +1243,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								trackingPoints={loaderData.trackingPoints}
 								trackingObjects={optimisticTrackingObjects}
 								activeTrackingObjectId={activeTrackingObjectId}
-								onActiveTrackingObjectChange={setActiveTrackingObjectId}
+								onActiveTrackingObjectChange={updateActiveTrackingObjectId}
 								scale={loaderData.scale}
 								isScaleCalibrationModeExternal={isScaleCalibrationMode}
 								onScaleCalibrationModeChange={setIsScaleCalibrationMode}
@@ -1339,7 +1373,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 																	e.preventDefault()
 																	return
 																}
-																setActiveTrackingObjectId(obj.id)
+																updateActiveTrackingObjectId(obj.id)
 															}}
 															className="flex items-center gap-2"
 															onSelect={(e) => {
@@ -1390,7 +1424,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 																	className="flex-1 cursor-pointer"
 																	onClick={(e) => {
 																		e.stopPropagation()
-																		setActiveTrackingObjectId(obj.id)
+																		updateActiveTrackingObjectId(obj.id)
 																	}}
 																	title="Click to select object"
 																>
@@ -1566,7 +1600,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 									trackingPoints={loaderData.trackingPoints}
 									trackingObjects={optimisticTrackingObjects}
 									activeTrackingObjectId={activeTrackingObjectId}
-									onActiveTrackingObjectChange={setActiveTrackingObjectId}
+									onActiveTrackingObjectChange={updateActiveTrackingObjectId}
 									scale={loaderData.scale}
 									isScaleCalibrationModeExternal={isScaleCalibrationMode}
 									onScaleCalibrationModeChange={setIsScaleCalibrationMode}
@@ -1701,7 +1735,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 																		e.preventDefault()
 																		return
 																	}
-																	setActiveTrackingObjectId(obj.id)
+																	updateActiveTrackingObjectId(obj.id)
 																}}
 																className="flex items-center gap-2"
 																onSelect={(e) => {
@@ -1755,7 +1789,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 																		className="flex-1 cursor-pointer"
 																		onClick={(e) => {
 																			e.stopPropagation()
-																			setActiveTrackingObjectId(obj.id)
+																			updateActiveTrackingObjectId(obj.id)
 																		}}
 																		title="Click to select object"
 																	>
