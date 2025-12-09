@@ -1475,9 +1475,7 @@ test('User can view analysis dashboard', async ({ page, navigate, login }) => {
 	// Verify dashboard shows numeric values (not empty state)
 	// The dashboard should display statistics, not the "No tracking data" message
 	const dashboardSection = page.locator('text=Analysis Dashboard').locator('..')
-	await expect(dashboardSection).not.toContainText(
-		'No tracking data available',
-	)
+	await expect(dashboardSection).not.toContainText('No tracking data available')
 
 	// Verify units are displayed (should show px or m depending on scale)
 	// Since we didn't set a scale, it should show pixel units
@@ -1486,6 +1484,8 @@ test('User can view analysis dashboard', async ({ page, navigate, login }) => {
 
 	// Verify statistics are calculated and displayed (should have numeric values)
 	// We can't verify exact values, but we can verify the format
-	const statsCards = page.locator('text=Total Distance,Average Velocity,Max Velocity,Average Acceleration')
+	const statsCards = page.locator(
+		'text=Total Distance,Average Velocity,Max Velocity,Average Acceleration',
+	)
 	await expect(statsCards.first()).toBeVisible()
 })
