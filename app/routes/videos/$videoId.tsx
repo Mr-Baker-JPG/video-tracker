@@ -1,10 +1,21 @@
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
-import { useState } from 'react'
-import { data, Link, useFetcher } from 'react-router'
+import { useState, useEffect, useRef } from 'react'
+import { data, Link, useFetcher, useRevalidator } from 'react-router'
 import { z } from 'zod'
 import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
+import { VideoAnalysisDashboard } from '#app/components/video-analysis-dashboard.tsx'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '#app/components/ui/alert-dialog.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	DropdownMenu,
@@ -62,8 +73,19 @@ const UpdateTrackingObjectSchema = z.object({
 	intent: z.literal('update-tracking-object'),
 	videoId: z.string(),
 	trackingObjectId: z.string(),
-	name: z.string().optional(),
-	color: z.string().optional(),
+	name: z.string().optional(), // Accepts any string including empty string
+	color: z.string().optional(), // Accepts any string including empty string
+})
+
+const DeleteTrackingObjectSchema = z.object({
+	intent: z.literal('delete-tracking-object'),
+	videoId: z.string(),
+	trackingObjectId: z.string(),
+})
+
+const ClearAllPointsSchema = z.object({
+	intent: z.literal('clear-all-points'),
+	videoId: z.string(),
 })
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -358,6 +380,15 @@ export async function action({ request }: Route.ActionArgs) {
 			status: 404,
 		})
 
+		// Prepare update data - always update name and color
+		// The client always sends both fields, so we should always update them
+		// Convert empty strings to null for database (null means "no custom name/color")
+		// Since the client always sends both fields, name and color should always be defined
+		const updateData = {
+			name: (name ?? '').trim() || null,
+			color: (color ?? '').trim() || null,
+		}
+
 		// Update tracking object
 		const trackingObject = await prisma.trackingObject.update({
 			where: {
@@ -366,10 +397,7 @@ export async function action({ request }: Route.ActionArgs) {
 					id: trackingObjectId,
 				},
 			},
-			data: {
-				...(name !== undefined && { name }),
-				...(color !== undefined && { color }),
-			},
+			data: updateData,
 			select: {
 				id: true,
 				name: true,
@@ -378,6 +406,108 @@ export async function action({ request }: Route.ActionArgs) {
 		})
 
 		return data({ success: true, trackingObject })
+	}
+
+	if (intent === 'delete-tracking-object') {
+		const submission = parseWithZod(formData, {
+			schema: DeleteTrackingObjectSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId, trackingObjectId } = submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to delete tracking objects for this video',
+			{ status: 403 },
+		)
+
+		// Verify tracking object exists
+		const existingObject = await prisma.trackingObject.findUnique({
+			where: {
+				videoId_id: {
+					videoId,
+					id: trackingObjectId,
+				},
+			},
+		})
+
+		invariantResponse(existingObject, 'Tracking object not found', {
+			status: 404,
+		})
+
+		// Delete all tracking points associated with this tracking object
+		await prisma.trackingPoint.deleteMany({
+			where: {
+				videoId,
+				trackingObjectId,
+			},
+		})
+
+		// Delete the tracking object
+		await prisma.trackingObject.delete({
+			where: {
+				videoId_id: {
+					videoId,
+					id: trackingObjectId,
+				},
+			},
+		})
+
+		return data({ success: true })
+	}
+
+	if (intent === 'clear-all-points') {
+		const submission = parseWithZod(formData, {
+			schema: ClearAllPointsSchema,
+		})
+
+		if (submission.status !== 'success') {
+			return data(
+				{ result: submission.reply() },
+				{ status: submission.status === 'error' ? 400 : 200 },
+			)
+		}
+
+		const { videoId } = submission.value
+
+		// Verify video exists and user owns it
+		const video = await prisma.video.findFirst({
+			select: { id: true, userId: true },
+			where: { id: videoId },
+		})
+
+		invariantResponse(video, 'Video not found', { status: 404 })
+		invariantResponse(
+			video.userId === userId,
+			'You do not have permission to clear tracking points for this video',
+			{ status: 403 },
+		)
+
+		// Delete all tracking points for this video
+		await prisma.trackingPoint.deleteMany({
+			where: { videoId },
+		})
+
+		// Also delete all tracking objects since they're no longer needed
+		await prisma.trackingObject.deleteMany({
+			where: { videoId },
+		})
+
+		return data({ success: true })
 	}
 
 	// Handle tracking point creation (existing logic)
@@ -492,17 +622,31 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const [editingObjectId, setEditingObjectId] = useState<string | null>(null)
 	const [editName, setEditName] = useState('')
 	const [editColor, setEditColor] = useState('')
+	const [deleteObjectId, setDeleteObjectId] = useState<string | null>(null)
+	const [showClearPointsDialog, setShowClearPointsDialog] = useState(false)
 	const trackingObjectsFetcher = useFetcher()
+	const clearPointsFetcher = useFetcher()
+	const revalidator = useRevalidator()
 
-	// Helper to get tracking object name
+	// Optimistic updates for tracking objects
+	const [optimisticTrackingObjects, setOptimisticTrackingObjects] = useState<
+		typeof loaderData.trackingObjects
+	>(loaderData.trackingObjects)
+
+	// Sync optimistic state with loader data when it changes
+	useEffect(() => {
+		setOptimisticTrackingObjects(loaderData.trackingObjects)
+	}, [loaderData.trackingObjects])
+
+	// Helper to get tracking object name (uses optimistic state)
 	const getTrackingObjectName = (id: string): string => {
-		const obj = loaderData.trackingObjects.find((o) => o.id === id)
+		const obj = optimisticTrackingObjects.find((o) => o.id === id)
 		return obj?.name || `Object ${id.slice(-6)}`
 	}
 
-	// Helper to get tracking object color
+	// Helper to get tracking object color (uses optimistic state)
 	const getTrackingObjectColor = (id: string): string => {
-		const obj = loaderData.trackingObjects.find((o) => o.id === id)
+		const obj = optimisticTrackingObjects.find((o) => o.id === id)
 		if (obj?.color) return obj.color
 		// Generate color from ID hash
 		const hash = id.split('').reduce((acc, char) => {
@@ -523,24 +667,79 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	}
 
 	const handleUpdateTrackingObject = (id: string) => {
-		if (!editName.trim() && !editColor.trim()) {
-			setEditingObjectId(null)
-			return
-		}
-		void trackingObjectsFetcher.submit(
-			{
-				intent: 'update-tracking-object',
-				videoId: loaderData.video.id,
-				trackingObjectId: id,
-				...(editName.trim() && { name: editName.trim() }),
-				...(editColor.trim() && { color: editColor.trim() }),
-			},
-			{ method: 'POST' },
+		const trimmedName = editName.trim()
+		const trimmedColor = editColor.trim()
+
+		// Optimistic UI update - update local state immediately
+		setOptimisticTrackingObjects((prev) =>
+			prev.map((obj) =>
+				obj.id === id
+					? {
+							...obj,
+							name: trimmedName || null,
+							color: trimmedColor || null,
+						}
+					: obj,
+			),
 		)
+
+		// Always send name and color fields when editing, so the server can update them
+		const formData: Record<string, string> = {
+			intent: 'update-tracking-object',
+			videoId: loaderData.video.id,
+			trackingObjectId: id,
+			name: trimmedName,
+			color: trimmedColor,
+		}
+
+		void trackingObjectsFetcher.submit(formData, { method: 'POST' })
 		setEditingObjectId(null)
 		setEditName('')
 		setEditColor('')
 	}
+
+	// Track previous fetcher state to detect transitions
+	const prevFetcherStateRef = useRef(trackingObjectsFetcher.state)
+	const prevClearPointsFetcherStateRef = useRef(clearPointsFetcher.state)
+
+	// Revalidate loader data when fetcher completes successfully (only once per update)
+	useEffect(() => {
+		const currentState = trackingObjectsFetcher.state
+		const prevState = prevFetcherStateRef.current
+
+		// Only revalidate when transitioning from submitting/loading to idle with success
+		// This ensures we only revalidate once per update, not on every render
+		if (
+			(prevState === 'submitting' || prevState === 'loading') &&
+			currentState === 'idle' &&
+			trackingObjectsFetcher.data?.success
+		) {
+			void revalidator.revalidate()
+		}
+
+		prevFetcherStateRef.current = currentState
+	}, [
+		trackingObjectsFetcher.state,
+		trackingObjectsFetcher.data?.success,
+		revalidator,
+	])
+
+	// Revalidate when clear points fetcher completes
+	useEffect(() => {
+		const currentState = clearPointsFetcher.state
+		const prevState = prevClearPointsFetcherStateRef.current
+
+		// Only revalidate when transitioning from submitting/loading to idle with success
+		if (
+			(prevState === 'submitting' || prevState === 'loading') &&
+			currentState === 'idle' &&
+			clearPointsFetcher.data?.success
+		) {
+			void revalidator.revalidate()
+		}
+
+		prevClearPointsFetcherStateRef.current = currentState
+	}, [clearPointsFetcher.state, clearPointsFetcher.data?.success, revalidator])
 
 	const startEditing = (obj: {
 		id: string
@@ -552,6 +751,35 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		setEditColor(obj.color || '')
 	}
 
+	const handleDeleteTrackingObject = (id: string) => {
+		void trackingObjectsFetcher.submit(
+			{
+				intent: 'delete-tracking-object',
+				videoId: loaderData.video.id,
+				trackingObjectId: id,
+			},
+			{ method: 'POST' },
+		)
+		setDeleteObjectId(null)
+		// Clear active tracking object if it was deleted
+		if (activeTrackingObjectId === id) {
+			setActiveTrackingObjectId(null)
+		}
+	}
+
+	const handleClearAllPoints = () => {
+		void clearPointsFetcher.submit(
+			{
+				intent: 'clear-all-points',
+				videoId: loaderData.video.id,
+			},
+			{ method: 'POST' },
+		)
+		setShowClearPointsDialog(false)
+		// Clear active tracking object since all points are deleted
+		setActiveTrackingObjectId(null)
+	}
+
 	// Sort points by frame for display
 	const sortedPoints = [...loaderData.trackingPoints].sort(
 		(a, b) => a.frame - b.frame,
@@ -560,373 +788,486 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const currentFrame = sortedPoints[0]?.frame ?? 0
 
 	return (
-		<div className="flex flex-col gap-6">
-			{/* Breadcrumb Navigation */}
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2 text-sm text-slate-500">
-					<Link
-						to="/videos"
-						className="flex items-center gap-1 transition-colors hover:text-slate-900"
-					>
-						<div className="rounded p-1 transition-colors hover:bg-slate-200">
-							<Icon name="arrow-left" className="h-4 w-4" />
-						</div>
-						Dashboard
-					</Link>
-					<span className="text-slate-300">/</span>
-					<span className="font-semibold text-slate-900">
-						{loaderData.video.filename}
-					</span>
-				</div>
-
-				<div className="flex items-center gap-2">
-					{/* Auto-save indicator */}
-					{(loaderData.trackingPoints.length > 0 || loaderData.scale) && (
-						<div className="flex items-center gap-1.5 text-xs text-slate-500">
-							<Icon name="check" className="h-3 w-3 text-green-600" />
-							<span className="hidden sm:inline">All changes saved</span>
-						</div>
-					)}
-					<button
-						type="button"
-						className="hover:text-primary flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors"
-					>
-						<Icon name="question-mark-circled" className="h-3 w-3" />
-						Show Guide
-					</button>
-					<Button asChild variant="default" size="sm">
+		<>
+			<div className="flex flex-col gap-6">
+				{/* Breadcrumb Navigation */}
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2 text-sm text-slate-500">
 						<Link
-							to={`/resources/export-tracking-data?videoId=${encodeURIComponent(loaderData.video.id)}`}
+							to="/videos"
+							className="flex items-center gap-1 transition-colors hover:text-slate-900"
 						>
-							<Icon name="download" className="h-3 w-3" />
-							Export Data
+							<div className="rounded p-1 transition-colors hover:bg-slate-200">
+								<Icon name="arrow-left" className="h-4 w-4" />
+							</div>
+							Dashboard
 						</Link>
-					</Button>
+						<span className="text-slate-300">/</span>
+						<span className="font-semibold text-slate-900">
+							{loaderData.video.filename}
+						</span>
+					</div>
+
+					<div className="flex items-center gap-2">
+						{/* Auto-save indicator */}
+						{(loaderData.trackingPoints.length > 0 || loaderData.scale) && (
+							<div className="flex items-center gap-1.5 text-xs text-slate-500">
+								<Icon name="check" className="h-3 w-3 text-green-600" />
+								<span className="hidden sm:inline">All changes saved</span>
+							</div>
+						)}
+						<button
+							type="button"
+							className="hover:text-primary flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors"
+						>
+							<Icon name="question-mark-circled" className="h-3 w-3" />
+							Show Guide
+						</button>
+						<Button asChild variant="default" size="sm">
+							<Link
+								to={`/resources/export-tracking-data?videoId=${encodeURIComponent(loaderData.video.id)}`}
+							>
+								<Icon name="download" className="h-3 w-3" />
+								Export Data
+							</Link>
+						</Button>
+					</div>
 				</div>
-			</div>
 
-			{/* Main Content Grid */}
-			<div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-				{/* Left Column: Video Player */}
-				<div className="space-y-3 lg:col-span-8">
-					{/* Tools Bar */}
-					<div className="relative z-10 flex items-center justify-between rounded-t-lg border-x border-t border-b-0 border-slate-200 bg-white px-3 py-2 shadow-sm">
-						<div className="flex items-center gap-1">
-							<span className="mr-2 text-xs font-bold tracking-wider text-slate-400 uppercase">
-								Tools
-							</span>
-							<Button
-								type="button"
-								variant={isScaleCalibrationMode ? 'default' : 'secondary'}
-								size="sm"
-								className="group"
-								title="Set Scale"
-								onClick={() =>
-									setIsScaleCalibrationMode(!isScaleCalibrationMode)
-								}
-							>
-								<Icon
-									name="file"
-									className="mr-2 h-4 w-4 text-slate-500 transition-colors group-hover:text-slate-900"
-								/>
-								<span className="hidden sm:inline">Set Scale</span>
-							</Button>
-							<Button
-								type="button"
-								variant="default"
-								size="sm"
-								title="Track Object"
-							>
-								<Icon name="crosshair-2" className="mr-2 h-4 w-4" />
-								<span className="hidden sm:inline">Track</span>
-							</Button>
-							<div className="mx-1 h-5 w-px bg-slate-200" />
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon"
-								className="text-slate-400 hover:bg-red-50 hover:text-red-500"
-								title="Clear Points"
-							>
-								<Icon name="trash" className="h-4 w-4" />
-							</Button>
-						</div>
-
-						<div className="flex items-center gap-2">
-							<DropdownMenu modal={false}>
-								<DropdownMenuTrigger asChild>
-									<Button variant="outline" size="sm" className="gap-2">
-										{activeTrackingObjectId ? (
-											<>
-												<div
-													className="h-2 w-2 rounded-full"
-													style={{
-														backgroundColor: getTrackingObjectColor(
-															activeTrackingObjectId,
-														),
-													}}
-												/>
-												<span className="text-xs">
-													{getTrackingObjectName(activeTrackingObjectId)}
-												</span>
-											</>
-										) : (
-											<>
-												<Icon name="crosshair-2" className="h-3 w-3" />
-												<span className="text-xs">Select Object</span>
-											</>
-										)}
-										<Icon name="chevron-down" className="h-3 w-3" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="w-56"
-									sideOffset={4}
-									alignOffset={0}
+				{/* Main Content Grid */}
+				<div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+					{/* Left Column: Video Player */}
+					<div className="space-y-3 lg:col-span-8">
+						{/* Tools Bar */}
+						<div className="relative z-10 flex items-center justify-between rounded-t-lg border-x border-t border-b-0 border-slate-200 bg-white px-3 py-2 shadow-sm">
+							<div className="flex items-center gap-1">
+								<span className="mr-2 text-xs font-bold tracking-wider text-slate-400 uppercase">
+									Tools
+								</span>
+								<Button
+									type="button"
+									variant={isScaleCalibrationMode ? 'default' : 'secondary'}
+									size="sm"
+									className="group"
+									title="Set Scale"
+									onClick={() =>
+										setIsScaleCalibrationMode(!isScaleCalibrationMode)
+									}
 								>
-									<DropdownMenuLabel>Tracking Objects</DropdownMenuLabel>
-									<DropdownMenuSeparator />
-									{loaderData.trackingObjects.length === 0 ? (
-										<DropdownMenuItem disabled>
-											<span className="text-xs text-slate-500">
-												No objects yet
-											</span>
-										</DropdownMenuItem>
-									) : (
-										loaderData.trackingObjects.map((obj) => (
-											<DropdownMenuItem
-												key={obj.id}
-												onClick={() => setActiveTrackingObjectId(obj.id)}
-												className="flex items-center gap-2"
-											>
-												<div
-													className="h-2 w-2 rounded-full"
-													style={{
-														backgroundColor: getTrackingObjectColor(obj.id),
-													}}
-												/>
-												<span className="flex-1">
-													{getTrackingObjectName(obj.id)}
-												</span>
-												{editingObjectId === obj.id ? (
-													<div className="flex items-center gap-1">
-														<Input
-															type="text"
-															value={editName}
-															onChange={(e) => setEditName(e.target.value)}
-															placeholder="Name"
-															className="h-6 w-20 text-xs"
-															onClick={(e) => e.stopPropagation()}
-														/>
-														<Input
-															type="color"
-															value={editColor || '#000000'}
-															onChange={(e) => setEditColor(e.target.value)}
-															className="h-6 w-10"
-															onClick={(e) => e.stopPropagation()}
-														/>
-														<Button
-															size="sm"
-															variant="ghost"
-															onClick={(e) => {
-																e.stopPropagation()
-																handleUpdateTrackingObject(obj.id)
-															}}
-														>
-															<Icon name="check" className="h-3 w-3" />
-														</Button>
-													</div>
-												) : (
-													<Button
-														size="sm"
-														variant="ghost"
-														onClick={(e) => {
-															e.stopPropagation()
-															startEditing(obj)
+									<Icon
+										name="file"
+										className="mr-2 h-4 w-4 text-slate-500 transition-colors group-hover:text-slate-900"
+									/>
+									<span className="hidden sm:inline">Set Scale</span>
+								</Button>
+								<Button
+									type="button"
+									variant="default"
+									size="sm"
+									title="Track Object"
+								>
+									<Icon name="crosshair-2" className="mr-2 h-4 w-4" />
+									<span className="hidden sm:inline">Track</span>
+								</Button>
+								<div className="mx-1 h-5 w-px bg-slate-200" />
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="text-slate-400 hover:bg-red-50 hover:text-red-500"
+									title="Clear Points"
+									onClick={() => setShowClearPointsDialog(true)}
+									disabled={loaderData.trackingPoints.length === 0}
+								>
+									<Icon name="trash" className="h-4 w-4" />
+								</Button>
+							</div>
+
+							<div className="flex items-center gap-2">
+								<DropdownMenu modal={false}>
+									<DropdownMenuTrigger asChild className="dark:text-white">
+										<Button variant="outline" size="sm" className="gap-2">
+											{activeTrackingObjectId ? (
+												<>
+													<div
+														className="h-2 w-2 rounded-full"
+														style={{
+															backgroundColor: getTrackingObjectColor(
+																activeTrackingObjectId,
+															),
 														}}
-													>
-														<Icon name="pencil-1" className="h-3 w-3" />
-													</Button>
-												)}
+													/>
+													<span className="text-xs">
+														{getTrackingObjectName(activeTrackingObjectId)}
+													</span>
+												</>
+											) : (
+												<>
+													<Icon name="crosshair-2" className="h-3 w-3" />
+													<span className="text-xs">Select Object</span>
+												</>
+											)}
+											<Icon name="chevron-down" className="h-3 w-3" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent
+										align="end"
+										className="w-64"
+										sideOffset={4}
+										alignOffset={0}
+									>
+										<DropdownMenuLabel>Tracking Objects</DropdownMenuLabel>
+										<DropdownMenuSeparator />
+										{optimisticTrackingObjects.length === 0 ? (
+											<DropdownMenuItem disabled>
+												<span className="text-xs text-slate-500">
+													No objects yet
+												</span>
 											</DropdownMenuItem>
-										))
-									)}
-									<DropdownMenuSeparator />
-									<DropdownMenuItem onClick={handleCreateTrackingObject}>
-										<Icon name="plus" className="mr-2 h-4 w-4" />
-										Create New Object
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
+										) : (
+											optimisticTrackingObjects.map((obj) => (
+												<DropdownMenuItem
+													key={obj.id}
+													onClick={(e) => {
+														// Don't close dropdown or change active object when editing
+														if (editingObjectId === obj.id) {
+															e.preventDefault()
+															return
+														}
+														setActiveTrackingObjectId(obj.id)
+													}}
+													className="flex items-center gap-2"
+													onSelect={(e) => {
+														// Prevent dropdown from closing when editing
+														if (editingObjectId === obj.id) {
+															e.preventDefault()
+														}
+													}}
+												>
+													<div
+														className="h-2 w-2 rounded-full"
+														style={{
+															backgroundColor: getTrackingObjectColor(obj.id),
+														}}
+													/>
+													<span className="flex-1">
+														{getTrackingObjectName(obj.id)}
+													</span>
+													{editingObjectId === obj.id ? (
+														<div className="flex items-center gap-1">
+															<Input
+																type="text"
+																value={editName}
+																onChange={(e) => setEditName(e.target.value)}
+																onKeyDown={(e) => {
+																	if (e.key === 'Enter') {
+																		e.preventDefault()
+																		e.stopPropagation()
+																		handleUpdateTrackingObject(obj.id)
+																	}
+																}}
+																onFocus={(e) => e.stopPropagation()}
+																onMouseDown={(e) => e.stopPropagation()}
+																autoFocus
+																placeholder="Name"
+																className="h-6 w-20 text-xs"
+																onClick={(e) => e.stopPropagation()}
+															/>
+															<Input
+																type="color"
+																value={editColor || '#000000'}
+																onChange={(e) => setEditColor(e.target.value)}
+																className="h-6 w-10"
+																onClick={(e) => e.stopPropagation()}
+															/>
+															<Button
+																size="sm"
+																variant="ghost"
+																onClick={(e) => {
+																	e.stopPropagation()
+																	handleUpdateTrackingObject(obj.id)
+																}}
+															>
+																<Icon name="check" className="h-3 w-3" />
+															</Button>
+														</div>
+													) : (
+														<div className="flex items-center gap-1">
+															<Button
+																size="sm"
+																variant="ghost"
+																onClick={(e) => {
+																	e.stopPropagation()
+																	startEditing(obj)
+																}}
+															>
+																<Icon name="pencil-1" className="h-3 w-3" />
+															</Button>
+															<Button
+																size="sm"
+																variant="ghost"
+																onClick={(e) => {
+																	e.stopPropagation()
+																	setDeleteObjectId(obj.id)
+																}}
+																className="text-red-600 hover:bg-red-50 hover:text-red-700"
+															>
+																<Icon name="trash" className="h-3 w-3" />
+															</Button>
+														</div>
+													)}
+												</DropdownMenuItem>
+											))
+										)}
+										<DropdownMenuSeparator />
+										<DropdownMenuItem onClick={handleCreateTrackingObject}>
+											<Icon name="plus" className="mr-2 h-4 w-4" />
+											Create New Object
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</div>
+						</div>
+
+						{/* Video Player Container */}
+						<div className="group relative w-full overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-slate-900 shadow-lg">
+							<VideoPlayer
+								src={loaderData.videoSrc}
+								videoId={loaderData.video.id}
+								trackingPoints={loaderData.trackingPoints}
+								trackingObjects={optimisticTrackingObjects}
+								activeTrackingObjectId={activeTrackingObjectId}
+								onActiveTrackingObjectChange={setActiveTrackingObjectId}
+								scale={loaderData.scale}
+								className="aspect-video"
+								isScaleCalibrationModeExternal={isScaleCalibrationMode}
+								onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+							/>
 						</div>
 					</div>
 
-					{/* Video Player Container */}
-					<div className="group relative w-full overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-slate-900 shadow-lg">
-						<VideoPlayer
-							src={loaderData.videoSrc}
-							videoId={loaderData.video.id}
-							trackingPoints={loaderData.trackingPoints}
-							trackingObjects={loaderData.trackingObjects}
-							activeTrackingObjectId={activeTrackingObjectId}
-							onActiveTrackingObjectChange={setActiveTrackingObjectId}
-							scale={loaderData.scale}
-							className="aspect-video"
-							isScaleCalibrationModeExternal={isScaleCalibrationMode}
-							onScaleCalibrationModeChange={setIsScaleCalibrationMode}
-						/>
-					</div>
-				</div>
+					{/* Right Column: Sidebar */}
+					<div className="flex flex-col gap-4 lg:col-span-4">
+						{/* Analysis Dashboard */}
+						<div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+							<VideoAnalysisDashboard
+								trackingPoints={loaderData.trackingPoints}
+								scale={loaderData.scale}
+							/>
+						</div>
 
-				{/* Right Column: Sidebar */}
-				<div className="flex flex-col gap-4 lg:col-span-4">
-					{/* Analysis Graph */}
-					<div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-						<Tabs defaultValue="position" className="flex h-full flex-col">
-							<div className="flex items-center justify-between rounded-t-xl border-b bg-slate-50 p-3">
+						{/* Analysis Graph */}
+						<div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+							<Tabs defaultValue="position" className="flex h-full flex-col">
+								<div className="flex items-center justify-between rounded-t-xl border-b bg-slate-50 p-3">
+									<h3 className="text-sm font-semibold text-slate-800">
+										Analysis Graph
+									</h3>
+									<TabsList className="grid w-auto grid-cols-3">
+										<TabsTrigger value="position">Position</TabsTrigger>
+										<TabsTrigger value="velocity">Velocity</TabsTrigger>
+										<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
+									</TabsList>
+								</div>
+								<div className="flex-1 p-4">
+									<TabsContent
+										value="position"
+										className="mt-0 flex-1 overflow-hidden"
+									>
+										<PositionVsTimeGraph
+											trackingPoints={loaderData.trackingPoints}
+											trackingObjects={optimisticTrackingObjects}
+											scale={loaderData.scale}
+										/>
+									</TabsContent>
+									<TabsContent
+										value="velocity"
+										className="mt-0 flex-1 overflow-hidden"
+									>
+										<VelocityVsTimeGraph
+											trackingPoints={loaderData.trackingPoints}
+											trackingObjects={optimisticTrackingObjects}
+											scale={loaderData.scale}
+										/>
+									</TabsContent>
+									<TabsContent
+										value="acceleration"
+										className="mt-0 flex-1 overflow-hidden"
+									>
+										<AccelerationVsTimeGraph
+											trackingPoints={loaderData.trackingPoints}
+											trackingObjects={optimisticTrackingObjects}
+											scale={loaderData.scale}
+										/>
+									</TabsContent>
+								</div>
+							</Tabs>
+						</div>
+
+						{/* Data Points Table */}
+						<div className="flex max-h-[400px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+							<div className="flex items-center justify-between border-b bg-slate-50 p-3">
 								<h3 className="text-sm font-semibold text-slate-800">
-									Analysis Graph
+									Data Points
 								</h3>
-								<TabsList className="grid w-auto grid-cols-3">
-									<TabsTrigger value="position">Position</TabsTrigger>
-									<TabsTrigger value="velocity">Velocity</TabsTrigger>
-									<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
-								</TabsList>
+								<span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">
+									{loaderData.trackingPoints.length} pts
+								</span>
 							</div>
-							<div className="flex-1 p-4">
-								<TabsContent
-									value="position"
-									className="mt-0 flex-1 overflow-hidden"
-								>
-									<PositionVsTimeGraph
-										trackingPoints={loaderData.trackingPoints}
-										trackingObjects={loaderData.trackingObjects}
-										scale={loaderData.scale}
-									/>
-								</TabsContent>
-								<TabsContent
-									value="velocity"
-									className="mt-0 flex-1 overflow-hidden"
-								>
-									<VelocityVsTimeGraph
-										trackingPoints={loaderData.trackingPoints}
-										trackingObjects={loaderData.trackingObjects}
-										scale={loaderData.scale}
-									/>
-								</TabsContent>
-								<TabsContent
-									value="acceleration"
-									className="mt-0 flex-1 overflow-hidden"
-								>
-									<AccelerationVsTimeGraph
-										trackingPoints={loaderData.trackingPoints}
-										trackingObjects={loaderData.trackingObjects}
-										scale={loaderData.scale}
-									/>
-								</TabsContent>
-							</div>
-						</Tabs>
-					</div>
+							<ScrollArea className="flex-1">
+								<table className="w-full text-left text-xs">
+									<thead className="sticky top-0 z-10 border-b bg-slate-50/95 font-medium text-slate-500 backdrop-blur">
+										<tr>
+											<th className="px-4 py-2">Frame</th>
+											<th className="px-4 py-2">Time (s)</th>
+											<th className="px-4 py-2">X (m)</th>
+											<th className="px-4 py-2">Y (m)</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y text-slate-700">
+										{sortedPoints.map((point, index) => {
+											const time = point.frame / 30
+											const xMeters = loaderData.scale
+												? point.x / loaderData.scale.pixelsPerMeter
+												: point.x
+											const yMeters = loaderData.scale
+												? point.y / loaderData.scale.pixelsPerMeter
+												: point.y
+											const isCurrent =
+												index ===
+												sortedPoints.findIndex((p) => p.frame === currentFrame)
 
-					{/* Data Points Table */}
-					<div className="flex max-h-[400px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-						<div className="flex items-center justify-between border-b bg-slate-50 p-3">
-							<h3 className="text-sm font-semibold text-slate-800">
-								Data Points
-							</h3>
-							<span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">
-								{loaderData.trackingPoints.length} pts
-							</span>
-						</div>
-						<ScrollArea className="flex-1">
-							<table className="w-full text-left text-xs">
-								<thead className="sticky top-0 z-10 border-b bg-slate-50/95 font-medium text-slate-500 backdrop-blur">
-									<tr>
-										<th className="px-4 py-2">Frame</th>
-										<th className="px-4 py-2">Time (s)</th>
-										<th className="px-4 py-2">X (m)</th>
-										<th className="px-4 py-2">Y (m)</th>
-									</tr>
-								</thead>
-								<tbody className="divide-y text-slate-700">
-									{sortedPoints.map((point, index) => {
-										const time = point.frame / 30
-										const xMeters = loaderData.scale
-											? point.x / loaderData.scale.pixelsPerMeter
-											: point.x
-										const yMeters = loaderData.scale
-											? point.y / loaderData.scale.pixelsPerMeter
-											: point.y
-										const isCurrent =
-											index ===
-											sortedPoints.findIndex((p) => p.frame === currentFrame)
-
-										return (
-											<tr
-												key={point.id}
-												className={
-													isCurrent
-														? 'bg-primary-light/20 ring-primary-light ring-1 ring-inset'
-														: index % 2 === 0
-															? 'bg-blue-50/50'
-															: ''
-												}
-											>
-												<td
-													className={`px-4 py-2 font-mono ${
+											return (
+												<tr
+													key={point.id}
+													className={
 														isCurrent
-															? 'text-primary font-bold'
-															: 'text-slate-400'
-													}`}
+															? 'bg-primary-light/20 ring-primary-light ring-1 ring-inset'
+															: index % 2 === 0
+																? 'bg-blue-50/50'
+																: ''
+													}
 												>
-													{point.frame}
-												</td>
+													<td
+														className={`px-4 py-2 font-mono ${
+															isCurrent
+																? 'text-primary font-bold'
+																: 'text-slate-400'
+														}`}
+													>
+														{point.frame}
+													</td>
+													<td
+														className={`px-4 py-2 font-mono ${
+															isCurrent ? 'font-bold' : ''
+														}`}
+													>
+														{time.toFixed(2)}
+													</td>
+													<td
+														className={`px-4 py-2 font-mono ${
+															isCurrent ? 'font-bold' : ''
+														}`}
+													>
+														{loaderData.scale
+															? xMeters.toFixed(2)
+															: point.x.toFixed(2)}
+													</td>
+													<td
+														className={`px-4 py-2 font-mono ${
+															isCurrent ? 'font-bold' : ''
+														}`}
+													>
+														{loaderData.scale
+															? yMeters.toFixed(2)
+															: point.y.toFixed(2)}
+													</td>
+												</tr>
+											)
+										})}
+										{loaderData.trackingPoints.length === 0 && (
+											<tr>
 												<td
-													className={`px-4 py-2 font-mono ${
-														isCurrent ? 'font-bold' : ''
-													}`}
+													colSpan={4}
+													className="px-4 py-8 text-center text-sm text-slate-500"
 												>
-													{time.toFixed(2)}
-												</td>
-												<td
-													className={`px-4 py-2 font-mono ${
-														isCurrent ? 'font-bold' : ''
-													}`}
-												>
-													{loaderData.scale
-														? xMeters.toFixed(2)
-														: point.x.toFixed(2)}
-												</td>
-												<td
-													className={`px-4 py-2 font-mono ${
-														isCurrent ? 'font-bold' : ''
-													}`}
-												>
-													{loaderData.scale
-														? yMeters.toFixed(2)
-														: point.y.toFixed(2)}
+													No tracking points yet. Click on the video to start
+													tracking.
 												</td>
 											</tr>
-										)
-									})}
-									{loaderData.trackingPoints.length === 0 && (
-										<tr>
-											<td
-												colSpan={4}
-												className="px-4 py-8 text-center text-sm text-slate-500"
-											>
-												No tracking points yet. Click on the video to start
-												tracking.
-											</td>
-										</tr>
-									)}
-								</tbody>
-							</table>
-						</ScrollArea>
+										)}
+									</tbody>
+								</table>
+							</ScrollArea>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
+
+			{/* Delete Tracking Object Confirmation Dialog */}
+			{deleteObjectId !== null &&
+				(() => {
+					const objectId = deleteObjectId!
+					return (
+						<AlertDialog
+							open={true}
+							onOpenChange={(open: boolean) => {
+								if (!open) setDeleteObjectId(null)
+							}}
+						>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Delete Tracking Object</AlertDialogTitle>
+									<AlertDialogDescription>
+										Are you sure you want to delete "
+										{getTrackingObjectName(objectId)}"? This will permanently
+										delete all tracking points associated with this object and
+										cannot be undone.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogAction
+										onClick={() => {
+											handleDeleteTrackingObject(objectId)
+										}}
+										className="bg-red-600 hover:bg-red-700"
+									>
+										Delete
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					)
+				})()}
+			{showClearPointsDialog && (
+				<AlertDialog
+					open={showClearPointsDialog}
+					onOpenChange={(open: boolean) => {
+						setShowClearPointsDialog(open)
+					}}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Clear All Tracking Points</AlertDialogTitle>
+							<AlertDialogDescription>
+								Are you sure you want to clear all tracking points? This will
+								permanently delete all tracking points and tracking objects for
+								this video and cannot be undone.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								onClick={handleClearAllPoints}
+								className="bg-red-600 hover:bg-red-700"
+							>
+								Clear All Points
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			)}
+		</>
 	)
 }

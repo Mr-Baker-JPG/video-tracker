@@ -156,6 +156,7 @@ export function VideoPlayer({
 	} | null>(null)
 	const [distanceMeters, setDistanceMeters] = useState<string>('')
 	const [scale, setScale] = useState<Scale | null>(initialScale)
+	const [frameInput, setFrameInput] = useState<string>('')
 
 	const handlePlayPause = useCallback(() => {
 		const video = videoRef.current
@@ -307,6 +308,75 @@ export function VideoPlayer({
 		setIsPlaying(false)
 		video.pause()
 	}, [])
+
+	const goToFirstFrame = useCallback(() => {
+		const video = videoRef.current
+		if (!video) return
+		video.currentTime = 0
+		setCurrentTime(0)
+		setIsPlaying(false)
+		video.pause()
+	}, [])
+
+	const goToLastFrame = useCallback(() => {
+		const video = videoRef.current
+		if (!video || !duration) return
+		const fps = 30
+		const totalFrames = Math.ceil(duration * fps)
+		const lastFrameTime = (totalFrames - 1) / fps
+		video.currentTime = lastFrameTime
+		setCurrentTime(lastFrameTime)
+		setIsPlaying(false)
+		video.pause()
+	}, [duration])
+
+	const goToFrame = useCallback(
+		(frameNumber: number) => {
+			const video = videoRef.current
+			if (!video || !duration) return
+			const fps = 30
+			const totalFrames = Math.ceil(duration * fps)
+			// Frame numbers are 1-indexed in the UI, so convert to 0-indexed for calculation
+			const frameIndex = Math.max(1, Math.min(totalFrames, frameNumber)) - 1
+			const frameTime = frameIndex / fps
+			video.currentTime = frameTime
+			setCurrentTime(frameTime)
+			setIsPlaying(false)
+			video.pause()
+		},
+		[duration],
+	)
+
+	// Sync frame input with current frame
+	useEffect(() => {
+		if (duration > 0) {
+			const fps = 30
+			const currentFrame = Math.ceil(currentTime * fps) + 1
+			setFrameInput(currentFrame.toString())
+		}
+	}, [currentTime, duration])
+
+	const handleFrameInputChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			setFrameInput(e.target.value)
+		},
+		[],
+	)
+
+	const handleFrameInputSubmit = useCallback(
+		(
+			e:
+				| React.FormEvent<HTMLFormElement>
+				| React.KeyboardEvent<HTMLInputElement>,
+		) => {
+			e.preventDefault()
+			const frameNumber = parseInt(frameInput, 10)
+			if (!isNaN(frameNumber) && frameNumber >= 0) {
+				goToFrame(frameNumber)
+			}
+		},
+		[frameInput, goToFrame],
+	)
 
 	const seekBackward = useCallback(() => {
 		const video = videoRef.current
@@ -1063,7 +1133,7 @@ export function VideoPlayer({
 					</div>
 					{/* Centered controls */}
 					<div className="flex items-center justify-center gap-1">
-						{/* Double left: 3 seconds backward */}
+						{/* Move back 3 seconds */}
 						<Button
 							type="button"
 							variant="ghost"
@@ -1075,7 +1145,7 @@ export function VideoPlayer({
 						>
 							<Icon name="double-arrow-left" className="h-6 w-6" />
 						</Button>
-						{/* Single left: Previous frame */}
+						{/* Move back 1 frame */}
 						<Button
 							type="button"
 							variant="ghost"
@@ -1117,7 +1187,7 @@ export function VideoPlayer({
 								<Icon name="play" className="fill-current" />
 							)}
 						</Button>
-						{/* Single right: Next frame */}
+						{/* Move forward 1 frame */}
 						<Button
 							type="button"
 							variant="ghost"
@@ -1129,7 +1199,7 @@ export function VideoPlayer({
 						>
 							<Icon name="chevron-right" className="h-6 w-6" />
 						</Button>
-						{/* Double right: 3 seconds forward */}
+						{/* Move forward 3 seconds */}
 						<Button
 							type="button"
 							variant="ghost"
@@ -1144,22 +1214,33 @@ export function VideoPlayer({
 					</div>
 					{/* Frame display on the right */}
 					<div className="flex items-center justify-end gap-2 pl-4">
-						<div className="flex flex-col items-center">
+						<div className="flex flex-col items-center gap-1">
 							<span className="text-[9px] font-bold tracking-wider text-slate-500 uppercase">
 								Frame
 							</span>
-							<div
-								className="flex items-baseline gap-1 rounded px-2 py-1 font-mono text-xs"
-								style={{
-									backgroundColor: 'var(--player-progress-bg)',
-									color: 'var(--muted-foreground)',
-								}}
-							>
-								<span className="font-bold text-white">
-									{Math.ceil(currentTime * 30) + 1}
-								</span>
-								<span className="text-slate-500">
-									/ {duration ? Math.ceil(duration * 30) + 1 : 0}
+							<div className="flex items-center gap-1">
+								<form
+									onSubmit={handleFrameInputSubmit}
+									className="flex items-center gap-1"
+								>
+									<Input
+										type="number"
+										min="1"
+										max={duration ? Math.ceil(duration * 30) : 1}
+										value={frameInput}
+										onChange={handleFrameInputChange}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') {
+												handleFrameInputSubmit(e)
+											}
+										}}
+										className="h-7 w-16 text-center font-mono text-xs text-white"
+										aria-label="Frame number"
+									/>
+								</form>
+								<span className="text-xs text-slate-500">/</span>
+								<span className="font-mono text-xs text-slate-500">
+									{duration ? Math.ceil(duration * 30) : 0}
 								</span>
 							</div>
 						</div>
@@ -1277,7 +1358,7 @@ function ScaleInputOverlay({
 					onChange={(e) => onChange(e.target.value)}
 					onKeyDown={handleKeyDown}
 					placeholder="Distance (m)"
-					className="h-8 w-24 text-sm"
+					className="h-8 w-24 text-sm dark:text-white"
 				/>
 				<span className="text-xs text-slate-500">m</span>
 			</div>

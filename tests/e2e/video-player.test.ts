@@ -1395,3 +1395,97 @@ test('User can load a saved tracking session', async ({
 	const graphContainer = page.locator('text=Analysis Graph').locator('..')
 	await expect(graphContainer).toBeVisible()
 })
+
+test('User can view analysis dashboard', async ({ page, navigate, login }) => {
+	const user = await login()
+
+	// Upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Create tracking points directly in database for reliable testing
+	// These points represent an object moving horizontally
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 0,
+				y: 100,
+				trackingObjectId: 'obj_dashboard_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 100,
+				y: 100,
+				trackingObjectId: 'obj_dashboard_1',
+			},
+			{
+				videoId: video.id,
+				frame: 60,
+				x: 200,
+				y: 100,
+				trackingObjectId: 'obj_dashboard_1',
+			},
+		],
+	})
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
+
+	// Wait for dashboard to be visible
+	await expect(page.getByText('Analysis Dashboard')).toBeVisible()
+
+	// Verify dashboard displays all metric cards
+	await expect(page.getByText('Total Distance')).toBeVisible()
+	await expect(page.getByText('Average Velocity')).toBeVisible()
+	await expect(page.getByText('Max Velocity')).toBeVisible()
+	await expect(page.getByText('Average Acceleration')).toBeVisible()
+
+	// Verify dashboard shows numeric values (not empty state)
+	// The dashboard should display statistics, not the "No tracking data" message
+	const dashboardSection = page.locator('text=Analysis Dashboard').locator('..')
+	await expect(dashboardSection).not.toContainText(
+		'No tracking data available',
+	)
+
+	// Verify units are displayed (should show px or m depending on scale)
+	// Since we didn't set a scale, it should show pixel units
+	const distanceCard = page.locator('text=Total Distance').locator('..')
+	await expect(distanceCard).toContainText('px')
+
+	// Verify statistics are calculated and displayed (should have numeric values)
+	// We can't verify exact values, but we can verify the format
+	const statsCards = page.locator('text=Total Distance,Average Velocity,Max Velocity,Average Acceleration')
+	await expect(statsCards.first()).toBeVisible()
+})

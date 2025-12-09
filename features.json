@@ -212,8 +212,8 @@
 				"E2E test: User can navigate frame by frame",
 				"Manual: Verify smooth frame navigation without playback interruption"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F017",
@@ -225,8 +225,8 @@
 				"E2E test: User can view analysis dashboard",
 				"Manual: Verify statistics match manual calculations"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F018",

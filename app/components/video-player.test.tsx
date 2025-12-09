@@ -32,9 +32,9 @@ test('Video player component renders with controls', () => {
 	// Check controls exist
 	expect(screen.getByLabelText(/play|pause|restart/i)).toBeInTheDocument()
 	expect(screen.getByLabelText('Seek backward 3 seconds')).toBeInTheDocument()
-	expect(screen.getByLabelText('Seek forward 3 seconds')).toBeInTheDocument()
 	expect(screen.getByLabelText('Previous frame')).toBeInTheDocument()
 	expect(screen.getByLabelText('Next frame')).toBeInTheDocument()
+	expect(screen.getByLabelText('Seek forward 3 seconds')).toBeInTheDocument()
 
 	// Check seek bar exists
 	const seekBar = screen.getByLabelText('Video seek')
@@ -373,4 +373,203 @@ test('Path toggle shows/hides trajectory', async () => {
 		expect(toggleButton).toHaveTextContent('Hide Path')
 		expect(toggleButton).toHaveAttribute('aria-label', 'Hide trajectory paths')
 	})
+})
+
+test('Frame navigation functions work correctly', async () => {
+	const user = userEvent.setup()
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
+
+	await waitFor(() => {
+		const video = container.querySelector('video')
+		expect(video).toBeInTheDocument()
+	})
+
+	const video = container.querySelector('video') as HTMLVideoElement
+	let currentTimeValue = 50 // Start at 50 seconds
+	const fps = 30
+	const videoDuration = 100
+	const totalFrames = Math.ceil(videoDuration * fps) // 100 second video = 3000 frames
+	const lastFrameTime = (totalFrames - 1) / fps
+
+	Object.defineProperty(video, 'paused', {
+		configurable: true,
+		get: () => true,
+	})
+
+	Object.defineProperty(video, 'currentTime', {
+		configurable: true,
+		get: () => currentTimeValue,
+		set: (value) => {
+			currentTimeValue = value
+		},
+	})
+
+	Object.defineProperty(video, 'duration', {
+		configurable: true,
+		writable: true,
+		value: videoDuration,
+	})
+
+	video.pause = vi.fn()
+
+	// Trigger loadedmetadata event to set duration state in component
+	video.dispatchEvent(new Event('loadedmetadata'))
+
+	// Wait for duration state to be set
+	await waitFor(() => {
+		// Component should now have duration state set
+	})
+
+	// Test previous frame button
+	currentTimeValue = 50
+	const previousFrameButton = screen.getByLabelText('Previous frame')
+	await user.click(previousFrameButton)
+	expect(currentTimeValue).toBeCloseTo(50 - 1 / fps, 2)
+
+	// Test next frame button
+	currentTimeValue = 50
+	const nextFrameButton = screen.getByLabelText('Next frame')
+	await user.click(nextFrameButton)
+	expect(currentTimeValue).toBeCloseTo(50 + 1 / fps, 2)
+})
+
+test('Frame number input validates and jumps to frame', async () => {
+	const user = userEvent.setup()
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
+
+	await waitFor(() => {
+		const video = container.querySelector('video')
+		expect(video).toBeInTheDocument()
+	})
+
+	const video = container.querySelector('video') as HTMLVideoElement
+	let currentTimeValue = 50
+	const fps = 30
+	const videoDuration = 100
+	const totalFrames = Math.ceil(videoDuration * fps) // 100 second video = 3000 frames
+
+	Object.defineProperty(video, 'paused', {
+		configurable: true,
+		get: () => true,
+	})
+
+	Object.defineProperty(video, 'currentTime', {
+		configurable: true,
+		get: () => currentTimeValue,
+		set: (value) => {
+			currentTimeValue = value
+		},
+	})
+
+	Object.defineProperty(video, 'duration', {
+		configurable: true,
+		writable: true,
+		value: videoDuration,
+	})
+
+	Object.defineProperty(video, 'readyState', {
+		configurable: true,
+		writable: true,
+		value: 4, // HAVE_ENOUGH_DATA
+	})
+
+	video.pause = vi.fn()
+
+	// Trigger loadedmetadata event to set duration state in component
+	video.dispatchEvent(new Event('loadedmetadata'))
+	// Also trigger canplay event as a fallback
+	video.dispatchEvent(new Event('canplay'))
+
+	// Wait for duration state to be set and frame input to update
+	await waitFor(
+		() => {
+			const frameInput = screen.getByLabelText(
+				'Frame number',
+			) as HTMLInputElement
+			expect(frameInput).toHaveAttribute('max', totalFrames.toString())
+		},
+		{ timeout: 3000 },
+	)
+
+	// Find frame input
+	const frameInput = screen.getByLabelText('Frame number') as HTMLInputElement
+	expect(frameInput).toBeInTheDocument()
+	expect(frameInput).toHaveAttribute('type', 'number')
+	expect(frameInput).toHaveAttribute('min', '1')
+	expect(frameInput).toHaveAttribute('max', totalFrames.toString())
+
+	// Test jumping to a specific frame (frame 100)
+	const targetFrame = 100
+	const targetTime = (targetFrame - 1) / fps
+
+	// Clear and type the frame number
+	await user.clear(frameInput)
+	// Wait a bit for the clear to complete
+	await waitFor(() => {
+		expect(frameInput.value).toBe('')
+	})
+
+	// Type the frame number
+	await user.type(frameInput, targetFrame.toString())
+
+	// Wait for the input value to be set
+	await waitFor(() => {
+		expect(frameInput.value).toBe(targetFrame.toString())
+	})
+
+	// Submit the form by pressing Enter
+	await user.keyboard('{Enter}')
+
+	// Wait for the video to seek to the target time
+	await waitFor(
+		() => {
+			expect(currentTimeValue).toBeCloseTo(targetTime, 2)
+		},
+		{ timeout: 3000 },
+	)
+
+	// Test that input is clamped to valid range (too high)
+	currentTimeValue = 50
+	await user.clear(frameInput)
+	await waitFor(() => {
+		expect(frameInput.value).toBe('')
+	})
+	await user.type(frameInput, (totalFrames + 100).toString())
+	await waitFor(() => {
+		expect(frameInput.value).toBe((totalFrames + 100).toString())
+	})
+	await user.keyboard('{Enter}')
+
+	await waitFor(
+		() => {
+			// Should clamp to last frame
+			const lastFrameTime = (totalFrames - 1) / fps
+			expect(currentTimeValue).toBeCloseTo(lastFrameTime, 2)
+		},
+		{ timeout: 3000 },
+	)
+
+	// Test that input is clamped to valid range (too low)
+	currentTimeValue = 50
+	await user.clear(frameInput)
+	await waitFor(() => {
+		expect(frameInput.value).toBe('')
+	})
+	await user.type(frameInput, '0')
+	await waitFor(() => {
+		expect(frameInput.value).toBe('0')
+	})
+	await user.keyboard('{Enter}')
+
+	await waitFor(
+		() => {
+			// Should clamp to first frame (frame 1 = time 0)
+			expect(currentTimeValue).toBeCloseTo(0, 2)
+		},
+		{ timeout: 3000 },
+	)
 })

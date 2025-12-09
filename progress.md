@@ -845,3 +845,82 @@ implementation and testing of each feature as defined in `features.json`.
   {id}"
 - Trajectory paths use tracking object colors for visual distinction
 - All tracking object operations are properly authenticated and authorized
+
+---
+
+### F016: Frame-by-Frame Navigation Controls (Test Fix)
+
+**Date:** 2025-12-08
+
+**Status:** ✅ Tests fixed and passing
+
+**Fixes:**
+
+- Fixed frame number input test that was failing due to timing issues
+- Updated test to properly wait for video duration to be set before testing
+  frame input
+- Added proper event handling (loadedmetadata, canplay) and readyState mock
+- Added waits for input value updates and form submission
+- Frame input test now correctly validates frame number input and jumping to
+  frames
+
+**Testing:**
+
+- ✅ Unit test: Frame navigation functions work correctly (passing)
+- ✅ Unit test: Frame number input validates and jumps to frame (fixed, now
+  passing)
+- ✅ All video player component tests passing (9/9 tests)
+
+**Notes:**
+
+- Frame input test required additional waits for component state updates
+- Test now properly mocks video readyState to ensure duration is available
+- Frame input correctly jumps to specified frame numbers when Enter is pressed
+- All frame navigation functionality working correctly
+
+---
+
+### F017: Video Analysis Dashboard
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Created statistics calculation utility (`app/utils/statistics.ts`) with functions to:
+  - Calculate total distance traveled (summing distances between consecutive points, grouped by tracking object)
+  - Calculate velocity from position data (v = Δx/Δt) with proper edge case handling
+  - Calculate acceleration from velocity data (a = Δv/Δt) with proper edge case handling
+  - Combine statistics from all tracking objects into overall metrics
+  - Support both pixel and meter units based on scale calibration
+- Created `VideoAnalysisDashboard` component (`app/components/video-analysis-dashboard.tsx`) that:
+  - Displays four metric cards: Total Distance, Average Velocity, Max Velocity, Average Acceleration
+  - Shows appropriate units (px/px/s/px/s² or m/m/s/m/s²) based on scale availability
+  - Displays empty state when no tracking data exists
+  - Uses color-coded icons for each metric card
+- Integrated dashboard into video route (`/videos/$videoId`) above the Analysis Graph section
+- Statistics calculations handle:
+  - Multiple tracking objects (calculates distance for each object separately, then sums)
+  - Points not in frame order (sorts by frame before calculation)
+  - Edge cases (single point, empty data, first/last frames)
+  - Scale conversion (pixels to meters when scale is available)
+
+**Testing:**
+
+- ✅ Unit test: Statistics calculations are correct (10/10 tests passing)
+  - Tests for empty data, single point, multiple points, scale conversion
+  - Tests for multiple tracking objects, unsorted frames, diagonal movement
+- ✅ Unit test: Dashboard displays all metrics (6/6 tests passing)
+  - Tests for empty state, metric cards display, unit labels (px vs m)
+  - Tests for numeric values display
+- ✅ E2E test: User can view analysis dashboard (added to video-player.test.ts, passing)
+- ✅ All new unit tests passing (16/16 tests)
+
+**Notes:**
+
+- Statistics are calculated by combining velocity/acceleration magnitudes from both X and Y axes
+- Total distance is calculated separately for each tracking object, then summed
+- Dashboard automatically updates when tracking data changes (via loader data)
+- Metric cards use responsive grid layout (1 column mobile, 2 tablet, 4 desktop)
+- All calculations use 30fps assumption for time conversion (consistent with other features)
