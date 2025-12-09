@@ -90,85 +90,81 @@ export default function VideosRoute({
 	actionData,
 }: Route.ComponentProps) {
 	return (
-		<div className="space-y-8">
-			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-				<div>
-					<h1 className="text-2xl font-bold tracking-tight text-slate-900">
+		<div className="min-h-screen bg-slate-50">
+			{/* Main Content */}
+			<main className="mx-auto max-w-[1920px] px-6 py-8">
+				{/* Header Section - Enhanced Typography */}
+				<div className="mb-8">
+					<h1 className="text-4xl font-bold tracking-tight text-slate-900">
 						My Experiments
 					</h1>
-					<p className="mt-1 text-sm text-slate-500">
-						Manage and analyze your physics videos.
+					<p className="mt-3 text-base font-medium text-slate-600">
+						Upload a video to begin tracking motion, generating data, and
+						visualizing physics experiments.
 					</p>
 				</div>
-				<Link
-					to="/videos/new"
-					className="bg-primary flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm shadow-blue-200 transition-all hover:bg-blue-600"
-				>
-					<Icon name="plus" className="h-4 w-4" />
-					New Analysis
-				</Link>
-			</div>
 
-			{loaderData.videos.length === 0 ? (
-				<Link
-					to="/videos/new"
-					className="group hover:border-primary flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center transition-all hover:bg-slate-50"
-				>
-					<div className="text-primary mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 transition-transform group-hover:scale-110">
-						<Icon name="upload" className="h-7 w-7" />
-					</div>
-					<h3 className="text-lg font-semibold text-slate-900">
-						Upload your experiment video
-					</h3>
-					<p className="mt-2 text-sm text-slate-500">
-						Drag and drop MP4, WebM or MOV (max 100MB)
-					</p>
-					<div className="mt-6 flex justify-center">
-						<button
-							type="button"
-							className="text-primary flex items-center gap-1 text-sm font-medium hover:underline"
+				{/* Upload Section - Visually Dominant */}
+				<div className="mb-12">
+					<div className="group relative mx-auto max-w-2xl">
+						<Link
+							to="/videos/new"
+							className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-300 bg-gradient-to-br from-blue-50 to-white p-16 text-center transition-all hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-100 hover:to-blue-50 hover:shadow-xl"
 						>
-							<Icon name="link-2" className="h-3 w-3" />
-							Paste YouTube URL
-						</button>
-					</div>
-				</Link>
-			) : (
-				<>
-					<Link
-						to="/videos/new"
-						className="group hover:border-primary flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center transition-all hover:bg-slate-50"
-					>
-						<div className="text-primary mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 transition-transform group-hover:scale-110">
-							<Icon name="upload" className="h-7 w-7" />
-						</div>
-						<h3 className="text-lg font-semibold text-slate-900">
-							Upload your experiment video
-						</h3>
-						<p className="mt-2 text-sm text-slate-500">
-							Drag and drop MP4, WebM or MOV (max 100MB)
-						</p>
-						<div className="mt-6 flex justify-center">
-							<button
-								type="button"
-								className="text-primary flex items-center gap-1 text-sm font-medium hover:underline"
-							>
-								<Icon name="link-2" className="h-3 w-3" />
-								Paste YouTube URL
-							</button>
-						</div>
-					</Link>
+							{/* Large, prominent icon */}
+							<div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform group-hover:scale-110 group-hover:shadow-xl">
+								<Icon name="upload" className="h-10 w-10" />
+							</div>
+							<h2 className="text-2xl font-bold text-slate-900">
+								Upload your experiment video
+							</h2>
+							<p className="mt-3 text-base text-slate-600">
+								Drag video here or click to choose file
+							</p>
+							<p className="mt-2 text-sm text-slate-500">
+								MP4, WebM or MOV (max 100MB)
+							</p>
+							<div className="mt-6">
+								<button
+									type="button"
+									className="flex items-center gap-2 text-sm font-semibold text-blue-600 transition-colors hover:text-blue-700"
+								>
+									<Icon name="link-2" className="h-4 w-4" />
+									Paste YouTube URL
+								</button>
+							</div>
+						</Link>
 
-					<div>
-						<div className="mb-4 flex items-center justify-between">
-							<h2 className="text-lg font-semibold text-slate-900">
+						{/* "New Analysis" button - Repositioned to the right */}
+						<div className="absolute top-0 right-0">
+							<Link
+								to="/videos/new"
+								className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-300"
+							>
+								<Icon name="plus" className="h-4 w-4" />
+								New Analysis
+							</Link>
+						</div>
+					</div>
+				</div>
+
+				{/* Recent Analyses Section - Improved */}
+				{loaderData.videos.length > 0 && (
+					<div className="mb-8">
+						<div className="mb-6 flex items-center justify-between">
+							<h2 className="text-2xl font-bold text-slate-900">
 								Recent Analyses
 							</h2>
-							<button className="text-primary text-sm hover:underline">
+							<Link
+								to="/videos"
+								className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700"
+							>
 								View All
-							</button>
+								<Icon name="arrow-right" className="h-4 w-4" />
+							</Link>
 						</div>
 
+						{/* Video Cards Grid */}
 						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
 							{loaderData.videos.map((video) => (
 								<VideoCard
@@ -179,8 +175,8 @@ export default function VideosRoute({
 							))}
 						</div>
 					</div>
-				</>
-			)}
+				)}
+			</main>
 		</div>
 	)
 }
@@ -223,20 +219,34 @@ function VideoCard({
 	} else {
 		status = 'Draft'
 	}
-	const statusColor =
-		status === 'Completed'
-			? 'bg-green-50 text-green-700 border-green-200'
-			: status === 'In Progress'
-				? 'bg-amber-50 text-amber-700 border-amber-200'
-				: 'bg-slate-100 text-slate-600 border-slate-200'
+
+	const statusConfig = {
+		Completed: {
+			text: 'text-green-700',
+			border: 'border-green-200',
+			bgLight: 'bg-green-50',
+		},
+		'In Progress': {
+			text: 'text-amber-700',
+			border: 'border-amber-200',
+			bgLight: 'bg-amber-50',
+		},
+		Draft: {
+			text: 'text-slate-600',
+			border: 'border-slate-200',
+			bgLight: 'bg-slate-100',
+		},
+	}
+
+	const config = statusConfig[status]
 
 	return (
-		<div className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-blue-100 hover:shadow-md">
+		<div className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-blue-300 hover:shadow-lg">
 			<Link
 				to={`/videos/${video.id}`}
 				className="focus:ring-primary block focus:ring-2 focus:outline-none"
 			>
-				{/* Video Thumbnail */}
+				{/* Video Thumbnail with Status Badge at Top-Left */}
 				<div className="relative aspect-video overflow-hidden bg-slate-100">
 					<video
 						src={videoSrc}
@@ -244,26 +254,56 @@ function VideoCard({
 						muted
 						preload="metadata"
 					/>
-					<div className="absolute inset-0 bg-slate-900/10 transition-colors group-hover:bg-slate-900/0" />
-					<div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-						<div className="rounded-full bg-white/90 p-3 shadow-lg">
-							<Icon name="play" className="text-primary h-6 w-6 fill-current" />
+
+					{/* Status Badge - Top-Left */}
+					<div
+						className={`absolute top-3 left-3 rounded-full border ${config.border} ${config.bgLight} px-2.5 py-1 text-[10px] font-bold tracking-wide uppercase ${config.text}`}
+					>
+						{status}
+					</div>
+
+					{/* Hover Overlay - Dark veil + Play icon */}
+					<div className="absolute inset-0 bg-slate-900/0 transition-all group-hover:bg-slate-900/40">
+						<div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+							<div className="rounded-full bg-white/95 p-4 shadow-xl">
+								<Icon
+									name="play"
+									className="h-8 w-8 fill-current text-blue-600"
+								/>
+							</div>
 						</div>
 					</div>
+
+					{/* Duration Badge - Bottom-Right */}
 					{video.duration && (
-						<span className="absolute right-2 bottom-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+						<span className="absolute right-2 bottom-2 rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
 							{formatDuration(video.duration)}
 						</span>
 					)}
 				</div>
 
-				{/* Video Info */}
-				<div className="p-4">
-					<div className="mb-2 flex items-start justify-between">
-						<h3 className="group-hover:text-primary truncate pr-2 font-semibold text-slate-900 transition-colors">
-							{video.filename}
-						</h3>
-						<div className="group/tooltip relative">
+				{/* Video Info - Better spacing and hierarchy */}
+				<div className="p-5">
+					<h3 className="mb-3 line-clamp-2 text-base font-semibold text-slate-900 transition-colors group-hover:text-blue-600">
+						{video.filename}
+					</h3>
+					<div className="flex items-center justify-between">
+						{/* Metadata - More visible */}
+						<div className="flex items-center gap-3">
+							<span className="flex items-center gap-1.5 text-sm font-medium text-slate-600">
+								<Icon name="clock" className="h-4 w-4" />
+								{timeAgo}
+							</span>
+							{trackingPointCount > 0 && (
+								<span className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
+									<Icon name="crosshair-1" className="h-4 w-4" />
+									{trackingPointCount} pts
+								</span>
+							)}
+						</div>
+
+						{/* Menu Button - Appears on hover */}
+						<div className="group/menu relative opacity-0 transition-opacity group-hover:opacity-100">
 							<Form method="POST" {...getFormProps(form)}>
 								<input type="hidden" name="videoId" value={video.id} />
 								<StatusButton
@@ -275,29 +315,18 @@ function VideoCard({
 									status={isPending ? 'pending' : (form.status ?? 'idle')}
 									disabled={isPending}
 									{...dc.getButtonProps()}
-									className="h-4 w-4 p-0 text-slate-400 hover:text-red-500"
+									className="h-5 w-5 p-0 text-slate-400 transition-colors hover:text-slate-600"
 									onClick={(e) => {
 										e.preventDefault()
 										e.stopPropagation()
 										dc.getButtonProps().onClick?.(e)
 									}}
 								>
-									<Icon name="dropdown-menu" className="h-4 w-4" />
+									<Icon name="dropdown-menu" className="h-5 w-5" />
 								</StatusButton>
 							</Form>
 							<ErrorList errors={form.errors} id={form.errorId} />
 						</div>
-					</div>
-					<div className="mt-3 flex items-center justify-between">
-						<span className="flex items-center gap-1 text-xs text-slate-500">
-							<Icon name="clock" className="h-3 w-3" />
-							{timeAgo}
-						</span>
-						<span
-							className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${statusColor}`}
-						>
-							{status}
-						</span>
 					</div>
 				</div>
 			</Link>
