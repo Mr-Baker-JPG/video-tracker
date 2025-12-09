@@ -26,10 +26,7 @@ export type Statistics = {
  * Calculate total distance traveled by summing distances between consecutive points
  * Groups points by tracking object to calculate distance for each object separately
  */
-function calculateTotalDistance(
-	points: TrackingPoint[],
-	scale: Scale,
-): number {
+function calculateTotalDistance(points: TrackingPoint[], scale: Scale): number {
 	if (points.length < 2) return 0
 
 	// Group points by tracking object

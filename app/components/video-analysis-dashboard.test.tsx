@@ -7,13 +7,9 @@ import { VideoAnalysisDashboard } from './video-analysis-dashboard.tsx'
 
 describe('VideoAnalysisDashboard', () => {
 	it('displays empty state when no tracking points', () => {
-		render(
-			<VideoAnalysisDashboard trackingPoints={[]} scale={null} />,
-		)
+		render(<VideoAnalysisDashboard trackingPoints={[]} scale={null} />)
 
-		expect(
-			screen.getByText(/No tracking data available/i),
-		).toBeInTheDocument()
+		expect(screen.getByText(/No tracking data available/i)).toBeInTheDocument()
 	})
 
 	it('displays all metric cards when tracking points exist', () => {
@@ -148,7 +144,9 @@ describe('VideoAnalysisDashboard', () => {
 		)
 
 		// All metrics should display numeric values (not "0.00" necessarily, but numbers)
-		const cards = screen.getAllByText(/Total Distance|Average Velocity|Max Velocity|Average Acceleration/)
+		const cards = screen.getAllByText(
+			/Total Distance|Average Velocity|Max Velocity|Average Acceleration/,
+		)
 		expect(cards.length).toBeGreaterThan(0)
 
 		// Check that the container has numeric values displayed (format like "100.00")
