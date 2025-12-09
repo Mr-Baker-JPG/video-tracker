@@ -815,6 +815,94 @@ test('User can export tracking data and download CSV file', async ({
 	expect(fileContent).toContain('obj_test_1,30,1.000000,150.25,250.50')
 })
 
+test('User can export graph as PNG', async ({ page, navigate, login }) => {
+	const user = await login()
+
+	// First, upload a video
+	await navigate('/videos/new')
+
+	const videoFilePath = join(__dirname, 'data', 'WhichLandsFirst.mp4')
+	const videoFileName = 'WhichLandsFirst.mp4'
+
+	const fileInput = page.getByLabel(/video file/i)
+	await fileInput.setInputFiles(videoFilePath)
+
+	await page.getByRole('button', { name: 'Upload', exact: true }).click()
+	await expect(page).toHaveURL('/videos/new')
+	await page.waitForTimeout(1000)
+
+	// Wait for video to be stored in database
+	let video = null
+	for (let i = 0; i < 30; i++) {
+		video = await prisma.video.findFirst({
+			where: {
+				userId: user.id,
+				filename: videoFileName,
+			},
+			select: { id: true },
+		})
+		if (video) break
+		await page.waitForTimeout(300)
+	}
+
+	expect(video).toBeDefined()
+	if (!video) throw new Error('Video not found')
+
+	// Create tracking points directly in database for more reliable testing
+	await prisma.trackingPoint.createMany({
+		data: [
+			{
+				videoId: video.id,
+				frame: 0,
+				x: 100.5,
+				y: 200.75,
+				trackingObjectId: 'obj_test_1',
+			},
+			{
+				videoId: video.id,
+				frame: 30,
+				x: 150.25,
+				y: 250.5,
+				trackingObjectId: 'obj_test_1',
+			},
+		],
+	})
+
+	// Navigate to video player page
+	await page.goto(`/videos/${video.id}`)
+
+	// Wait for video player to load
+	await expect(page.getByRole('heading', { name: videoFileName })).toBeVisible()
+
+	// Wait for graphs to load (check for Position tab)
+	await expect(page.getByRole('tab', { name: /position/i })).toBeVisible()
+
+	// Set up download listener before clicking export
+	const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
+
+	// Find and click the Export PNG button in the Position graph
+	// The button should be in the Position tab panel
+	const positionTab = page.getByRole('tab', { name: /position/i })
+	await positionTab.click()
+
+	// Wait for the tab panel to be visible
+	await expect(page.getByRole('tabpanel', { name: /position/i })).toBeVisible()
+
+	// Find the export button
+	const exportButton = page.getByRole('button', { name: /export png/i })
+
+	await expect(exportButton).toBeVisible()
+	await exportButton.click()
+
+	// Wait for download to start
+	const download = await downloadPromise
+
+	// Verify download filename (should contain position_vs_time and .png)
+	const filename = download.suggestedFilename()
+	expect(filename).toContain('position_vs_time')
+	expect(filename).toContain('.png')
+})
+
 test('User can view position vs time graph', async ({
 	page,
 	navigate,

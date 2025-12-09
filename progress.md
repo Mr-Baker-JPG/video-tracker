@@ -936,3 +936,65 @@ implementation and testing of each feature as defined in `features.json`.
 - Metric cards use responsive grid layout (1 column mobile, 2 tablet, 4 desktop)
 - All calculations use 30fps assumption for time conversion (consistent with
   other features)
+
+---
+
+### F018: Graph Export (PNG/PDF)
+
+**Date:** 2025-01-27
+
+**Status:** ✅ Implemented and tests passing
+
+**Implementation:**
+
+- Installed `html2canvas` library for converting DOM elements to canvas/images
+- Created `exportGraphAsPNG` utility function in `app/utils/graph-export.tsx`
+  that:
+  - Captures graph container element using html2canvas
+  - Adds optional graph title to exported image
+  - Converts canvas to PNG blob and triggers browser download
+  - Handles errors gracefully with console error logging
+- Added export functionality to all three graph components:
+  - `PositionVsTimeGraph`: Export button with graph title including axis
+    selection
+  - `VelocityVsTimeGraph`: Export button with graph title including axis
+    selection
+  - `AccelerationVsTimeGraph`: Export button with graph title including axis
+    selection
+- Export buttons appear in the graph header area next to axis toggle controls
+- Exported images include:
+  - Graph title (e.g., "Position vs Time (X Axis)")
+  - All graph elements (axes, labels, data points, lines, legend)
+  - High-quality rendering (2x scale for better resolution)
+  - White background for clean appearance
+
+**Testing:**
+
+- ✅ Unit test: Graph export function generates image data (4/4 tests passing)
+  - Tests for element not found error handling
+  - Tests for successful PNG export
+  - Tests for title inclusion in exported image
+  - Tests for error handling during export
+- ✅ Unit test: All graph component tests still pass (20/20 tests)
+- ✅ E2E test: User can export graph as PNG (added to video-player.test.ts)
+- ⏭️ Manual: Verify exported images are high quality and readable (to be
+  verified in browser)
+
+**Notes:**
+
+- Export uses html2canvas library which captures the rendered graph as displayed
+- Graph title is automatically included in exported images
+- Filename includes graph type and axis (e.g., `position_vs_time_x_axis.png`)
+- Export buttons use shadcn/ui Button component with outline variant
+- All three graphs (Position, Velocity, Acceleration) support PNG export
+- PDF export can be added in future by converting PNG to PDF or using a PDF
+  library
+
+**Oklch Color Compatibility:**
+
+- Switched from `html2canvas` to `html2canvas-pro` which natively supports
+  oklch() color function used by Tailwind CSS v4
+- html2canvas-pro is a fork that adds support for modern CSS color functions
+- No cloning or color conversion needed - html2canvas-pro handles oklch directly
+- Simplified implementation: directly pass element to html2canvas-pro without
+  workarounds

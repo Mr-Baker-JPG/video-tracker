@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react'
-import type { ReactElement } from 'react'
+import { useState, useMemo, useRef, type ReactElement } from 'react'
 import {
 	LineChart,
 	Line,
@@ -10,7 +9,10 @@ import {
 	Legend,
 	ResponsiveContainer,
 } from 'recharts'
+import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
+import { exportGraphAsPNG } from '#app/utils/graph-export.tsx'
 
 interface TrackingPoint {
 	frame: number
@@ -44,6 +46,9 @@ export function PositionVsTimeGraph({
 	trackingObjects = [],
 	scale,
 }: PositionVsTimeGraphProps) {
+	const graphContainerRef = useRef<HTMLDivElement>(null)
+	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
+
 	// Helper to get tracking object name
 	const getTrackingObjectName = (id: string): string => {
 		const obj = trackingObjects.find((o) => o.id === id)
@@ -61,7 +66,6 @@ export function PositionVsTimeGraph({
 		const hue = Math.abs(hash) % 360
 		return `hsl(${hue}, 70%, 50%)`
 	}
-	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
 
 	// Transform tracking points into chart data
 	const chartData = useMemo(() => {
@@ -172,7 +176,6 @@ export function PositionVsTimeGraph({
 
 			const minTime = Math.min(...times)
 			const maxTime = Math.max(...times)
-			const timeRange = maxTime - minTime
 
 			// Calculate position range based on selected axis
 			// When scale is available, use meter values; otherwise use pixel values
@@ -328,6 +331,24 @@ export function PositionVsTimeGraph({
 			}
 		}, [chartData, selectedAxis, scale])
 
+	const handleExport = async () => {
+		if (!graphContainerRef.current) return
+
+		const graphTitle = `Position vs Time (${selectedAxis.toUpperCase()} Axis)`
+		const filename = `position_vs_time_${selectedAxis}_axis`
+
+		// Set a unique ID for the container if it doesn't have one
+		if (!graphContainerRef.current.id) {
+			graphContainerRef.current.id = `position-graph-${Date.now()}`
+		}
+
+		try {
+			await exportGraphAsPNG(graphContainerRef.current.id, filename, graphTitle)
+		} catch (error) {
+			console.error('Failed to export graph:', error)
+		}
+	}
+
 	if (trackingPoints.length === 0) {
 		return (
 			<div className="border-border bg-card text-muted-foreground rounded-lg border p-8 text-center">
@@ -353,8 +374,17 @@ export function PositionVsTimeGraph({
 						</TabsTrigger>
 					</TabsList>
 				</Tabs>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={handleExport}
+					className="flex items-center gap-2"
+				>
+					<Icon name="file" className="size-4" />
+					Export PNG
+				</Button>
 			</div>
-			<div className="h-96 w-full">
+			<div ref={graphContainerRef} className="h-96 w-full">
 				<ResponsiveContainer width="100%" height="100%">
 					<LineChart data={chartData}>
 						<CartesianGrid strokeDasharray="3 3" />

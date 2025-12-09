@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactElement } from 'react'
+import { useState, useMemo, useRef, type ReactElement } from 'react'
 import {
 	LineChart,
 	Line,
@@ -9,7 +9,10 @@ import {
 	Legend,
 	ResponsiveContainer,
 } from 'recharts'
+import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
+import { exportGraphAsPNG } from '#app/utils/graph-export.tsx'
 
 interface TrackingPoint {
 	frame: number
@@ -194,6 +197,7 @@ export function AccelerationVsTimeGraph({
 	trackingObjects = [],
 	scale,
 }: AccelerationVsTimeGraphProps) {
+	const graphContainerRef = useRef<HTMLDivElement>(null)
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
 
 	// Helper to get tracking object name
@@ -453,6 +457,24 @@ export function AccelerationVsTimeGraph({
 			}
 		}, [chartData])
 
+	const handleExport = async () => {
+		if (!graphContainerRef.current) return
+
+		const graphTitle = `Acceleration vs Time (${selectedAxis.toUpperCase()} Axis)`
+		const filename = `acceleration_vs_time_${selectedAxis}_axis`
+
+		// Set a unique ID for the container if it doesn't have one
+		if (!graphContainerRef.current.id) {
+			graphContainerRef.current.id = `acceleration-graph-${Date.now()}`
+		}
+
+		try {
+			await exportGraphAsPNG(graphContainerRef.current.id, filename, graphTitle)
+		} catch (error) {
+			console.error('Failed to export graph:', error)
+		}
+	}
+
 	if (trackingPoints.length === 0) {
 		return (
 			<div className="border-border bg-card text-muted-foreground rounded-lg border p-8 text-center">
@@ -477,8 +499,17 @@ export function AccelerationVsTimeGraph({
 						</TabsTrigger>
 					</TabsList>
 				</Tabs>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={handleExport}
+					className="flex items-center gap-2"
+				>
+					<Icon name="file" className="size-4" />
+					Export PNG
+				</Button>
 			</div>
-			<div className="h-96 w-full">
+			<div ref={graphContainerRef} className="h-96 w-full">
 				<ResponsiveContainer width="100%" height="100%">
 					<LineChart data={chartData}>
 						<CartesianGrid strokeDasharray="3 3" />

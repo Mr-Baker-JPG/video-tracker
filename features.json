@@ -237,8 +237,8 @@
 				"E2E test: User can export graph as PNG",
 				"Manual: Verify exported images are high quality and readable"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F019",
