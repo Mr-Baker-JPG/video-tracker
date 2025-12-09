@@ -38,6 +38,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 		orderBy: [{ trackingObjectId: 'asc' }, { frame: 'asc' }],
 	})
 
+	// Validate that tracking points exist
+	invariantResponse(
+		trackingPoints.length > 0,
+		'No tracking points found. Please add tracking points before exporting.',
+		{ status: 400 },
+	)
+
 	// Fetch scale if it exists
 	const scale = await prisma.videoScale.findUnique({
 		where: { videoId: video.id },

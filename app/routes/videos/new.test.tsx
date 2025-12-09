@@ -391,7 +391,8 @@ test('Video upload handler validates file type and size', async () => {
 		expect(
 			invalidResult.error.issues.some(
 				(issue) =>
-					issue.message === 'Video file must be mp4, webm, or mov format',
+					issue.message.includes('Invalid file type') &&
+					issue.message.includes('MP4, WebM, or MOV format'),
 			),
 		).toBe(true)
 	}
@@ -415,7 +416,9 @@ test('Video upload handler validates file type and size', async () => {
 	if (!largeResult.success) {
 		expect(
 			largeResult.error.issues.some(
-				(issue) => issue.message === 'Video file size must be less than 500MB',
+				(issue) =>
+					issue.message.includes('exceeds the maximum allowed size') &&
+					issue.message.includes('500 MB'),
 			),
 		).toBe(true)
 	}

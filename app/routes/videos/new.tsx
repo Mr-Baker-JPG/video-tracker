@@ -50,9 +50,10 @@ export const VideoUploadSchema = z
 			}
 
 			if (data.videoFile.size > MAX_FILE_SIZE) {
+				const fileSizeMB = (data.videoFile.size / (1024 * 1024)).toFixed(2)
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					message: 'Video file size must be less than 500MB',
+					message: `File size (${fileSizeMB} MB) exceeds the maximum allowed size of 500 MB. Please compress the video or use a smaller file.`,
 					path: ['videoFile'],
 				})
 			}
@@ -60,7 +61,7 @@ export const VideoUploadSchema = z
 			if (!VALID_VIDEO_TYPES.includes(data.videoFile.type)) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					message: 'Video file must be mp4, webm, or mov format',
+					message: `Invalid file type. Please upload a video file in MP4, WebM, or MOV format. Detected type: ${data.videoFile.type || 'unknown'}`,
 					path: ['videoFile'],
 				})
 			}

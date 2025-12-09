@@ -102,6 +102,89 @@ test('Play/pause functionality works', async () => {
 	await waitFor(() => {
 		expect(playPauseButton).toHaveAttribute('aria-label', 'Pause')
 	})
+})
+
+test('Video error handling displays user-friendly error messages', async () => {
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
+
+	await waitFor(() => {
+		const video = container.querySelector('video')
+		expect(video).toBeInTheDocument()
+	})
+
+	const video = container.querySelector('video') as HTMLVideoElement
+
+	// Mock MediaError
+	class MockMediaError {
+		code = MediaError.MEDIA_ERR_NETWORK
+		message = 'Network error'
+	}
+
+	// Create error object
+	const error = new MockMediaError() as MediaError
+	Object.defineProperty(video, 'error', {
+		configurable: true,
+		get: () => error,
+	})
+
+	// Trigger error event
+	video.dispatchEvent(new Event('error'))
+
+	// Wait for error message to appear
+	await waitFor(() => {
+		expect(
+			screen.getByText(/Network error occurred while loading the video/i),
+		).toBeInTheDocument()
+	})
+
+	// Check that error message contains helpful text
+	expect(
+		screen.getByText(/Network error occurred while loading the video/i),
+	).toBeInTheDocument()
+	expect(screen.getByText(/check your connection/i)).toBeInTheDocument()
+
+	// Check that "Try Again" button exists
+	const tryAgainButton = screen.getByRole('button', { name: /try again/i })
+	expect(tryAgainButton).toBeInTheDocument()
+})
+
+test('Video error handling displays different messages for different error codes', async () => {
+	const { container } = renderWithRouter(
+		<VideoPlayer src="/test-video.mp4" trackingObjects={[]} />,
+	)
+
+	await waitFor(() => {
+		const video = container.querySelector('video')
+		expect(video).toBeInTheDocument()
+	})
+
+	const video = container.querySelector('video') as HTMLVideoElement
+
+	// Test MEDIA_ERR_DECODE
+	class MockDecodeError {
+		code = MediaError.MEDIA_ERR_DECODE
+		message = 'Decode error'
+	}
+
+	const decodeError = new MockDecodeError() as MediaError
+	Object.defineProperty(video, 'error', {
+		configurable: true,
+		get: () => decodeError,
+	})
+
+	video.dispatchEvent(new Event('error'))
+
+	await waitFor(() => {
+		expect(
+			screen.getByText(/Video file could not be decoded/i),
+		).toBeInTheDocument()
+	})
+	expect(
+		screen.getByText(/file may be corrupted or in an unsupported format/i),
+	).toBeInTheDocument()
+})
 
 	// Click to pause - this should call video.pause()
 	await user.click(playPauseButton)

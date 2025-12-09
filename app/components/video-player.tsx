@@ -106,6 +106,7 @@ export function VideoPlayer({
 		useState<TrackingObject[]>(trackingObjects)
 	const [internalActiveTrackingObjectId, setInternalActiveTrackingObjectId] =
 		useState<string | null>(null)
+	const [videoError, setVideoError] = useState<string | null>(null)
 
 	// Use external activeTrackingObjectId if provided, otherwise use internal state
 	const activeTrackingObjectId =
@@ -272,6 +273,8 @@ export function VideoPlayer({
 			console.log('handleLoadedMetadata: video ref is null')
 			return
 		}
+		// Clear any previous errors when video loads successfully
+		setVideoError(null)
 		const duration = video.duration
 		if (isFinite(duration) && duration > 0) {
 			setDuration(duration)
@@ -306,6 +309,33 @@ export function VideoPlayer({
 			if (video.error) {
 				console.error('Error code:', video.error.code)
 				console.error('Error message:', video.error.message)
+
+				// Map error codes to user-friendly messages
+				let errorMessage = 'An error occurred while loading the video.'
+				switch (video.error.code) {
+					case MediaError.MEDIA_ERR_ABORTED:
+						errorMessage = 'Video loading was aborted. Please try again.'
+						break
+					case MediaError.MEDIA_ERR_NETWORK:
+						errorMessage =
+							'Network error occurred while loading the video. Please check your connection and try again.'
+						break
+					case MediaError.MEDIA_ERR_DECODE:
+						errorMessage =
+							'Video file could not be decoded. The file may be corrupted or in an unsupported format.'
+						break
+					case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+						errorMessage =
+							'Video format is not supported. Please use MP4, WebM, or MOV format.'
+						break
+					default:
+						errorMessage =
+							video.error.message ||
+							'An unknown error occurred while loading the video.'
+				}
+				setVideoError(errorMessage)
+			} else {
+				setVideoError('An unknown error occurred while loading the video.')
 			}
 		},
 		[],
@@ -1005,6 +1035,34 @@ export function VideoPlayer({
 								: 'Tracking canvas - click to place tracking points'
 						}
 					/>
+				)}
+
+				{/* Video error message */}
+				{videoError && (
+					<div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 p-4">
+						<div className="max-w-md rounded-lg border border-red-500/50 bg-red-950/90 p-4 text-center">
+							<Icon
+								name="exclamation-triangle"
+								className="mx-auto mb-2 h-8 w-8 text-red-500"
+							/>
+							<h3 className="mb-2 text-lg font-semibold text-red-100">
+								Video Loading Error
+							</h3>
+							<p className="text-sm text-red-200">{videoError}</p>
+							<button
+								type="button"
+								onClick={() => {
+									setVideoError(null)
+									if (videoRef.current) {
+										videoRef.current.load()
+									}
+								}}
+								className="mt-4 rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+							>
+								Try Again
+							</button>
+						</div>
+					</div>
 				)}
 
 				{/* Scale line indicator */}

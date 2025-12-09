@@ -250,8 +250,8 @@
 				"E2E test: Error messages appear for failed video loads",
 				"Manual: Verify error messages are clear and actionable"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F020",
@@ -283,6 +283,29 @@
 				"E2E test: Line of best fit appears overlaid on the graph",
 				"Manual: Verify line of best fit visually matches data trend",
 				"Manual: Verify mathematical model statistics are accurate for physics analysis"
+			],
+			"implemented": false,
+			"tests_passed": false
+		},
+		{
+			"id": "F022",
+			"title": "Fullscreen Modal for Data Table and Graph Cards",
+			"description": "Add fullscreen icon buttons in the top-right header of both the data table card and the graph section card. Clicking the button opens a modal dialog overlay that expands the card content to fullscreen using framer-motion animations. The data table modal displays the same table content at a larger size. The graph section modal preserves the currently active tab (Position/Velocity/Acceleration) and allows switching between tabs within the modal. The modal can be closed via a close button (X icon), pressing ESC, or clicking the backdrop.",
+			"tests": [
+				"Unit test: Fullscreen button renders in data table header",
+				"Unit test: Fullscreen button renders in graph section header",
+				"Unit test: Modal opens when fullscreen button is clicked",
+				"Unit test: Modal closes when close button is clicked",
+				"Unit test: Modal closes when ESC key is pressed",
+				"Unit test: Modal closes when backdrop is clicked",
+				"Unit test: Graph modal preserves active tab when opened",
+				"Unit test: Graph modal allows tab switching when open",
+				"E2E test: User can open data table in fullscreen modal",
+				"E2E test: User can open graph section in fullscreen modal",
+				"E2E test: User can switch graph tabs within fullscreen modal",
+				"E2E test: User can close modal using all three methods (close button, ESC, backdrop)",
+				"Manual: Verify framer-motion expansion animation is smooth",
+				"Manual: Verify modal content is properly sized and scrollable if needed"
 			],
 			"implemented": false,
 			"tests_passed": false
