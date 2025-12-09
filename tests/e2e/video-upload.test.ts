@@ -53,21 +53,19 @@ test('User can select a video file and see upload progress', async ({
 		// Progress might not show if submission is too fast
 	}
 
-	// Wait for redirect back to the page (after successful upload)
-	await expect(page).toHaveURL('/videos/new')
+	// Wait for redirect to video page (after successful upload)
+	// URL should be /videos/{videoId}
+	await expect(page).toHaveURL(/\/videos\/[^/]+$/)
 
-	// Wait for video to be stored in database (with retry)
-	let video = null
-	for (let i = 0; i < 10; i++) {
-		video = await prisma.video.findFirst({
-			where: {
-				userId: user.id,
-				filename: videoFile.name,
-			},
-		})
-		if (video) break
-		await page.waitForTimeout(100) // Wait 100ms before retrying
-	}
+	// Extract video ID from URL
+	const url = new URL(page.url())
+	const videoId = url.pathname.split('/').pop()
+	expect(videoId).toBeDefined()
+
+	// Verify video exists in database
+	const video = await prisma.video.findUnique({
+		where: { id: videoId },
+	})
 
 	expect(video).toBeDefined()
 	expect(video?.filename).toBe(videoFile.name)
@@ -106,42 +104,26 @@ test('Uploaded video is stored and retrievable', async ({
 	await expect(uploadButton).toBeEnabled()
 	await uploadButton.click()
 
-	// Wait for upload to complete
-	await expect(page).toHaveURL('/videos/new')
+	// Wait for redirect to video page (after successful upload)
+	await expect(page).toHaveURL(/\/videos\/[^/]+$/)
 
-	// Wait for video to be stored in database (with retry)
-	let video = null
-	for (let i = 0; i < 10; i++) {
-		video = await prisma.video.findFirst({
-			where: {
-				userId: user.id,
-				filename: videoFile.name,
-			},
-		})
-		if (video) break
-		await page.waitForTimeout(100) // Wait 100ms before retrying
-	}
+	// Extract video ID from URL
+	const url = new URL(page.url())
+	const videoId = url.pathname.split('/').pop()
+	expect(videoId).toBeDefined()
+
+	// Verify video exists in database
+	const video = await prisma.video.findUnique({
+		where: { id: videoId },
+		include: { user: true },
+	})
 
 	expect(video).toBeDefined()
 	expect(video?.filename).toBe(videoFile.name)
 	expect(video?.userId).toBe(user.id)
 	expect(video?.url).toBeDefined()
 	expect(video?.uploadedAt).toBeInstanceOf(Date)
-
-	// Assert video is not null for TypeScript
-	if (!video) {
-		throw new Error('Video not found')
-	}
-
-	// Verify video can be retrieved by ID
-	const retrieved = await prisma.video.findUnique({
-		where: { id: video.id },
-		include: { user: true },
-	})
-
-	expect(retrieved).toBeDefined()
-	expect(retrieved?.user.id).toBe(user.id)
-	expect(retrieved?.filename).toBe(videoFile.name)
+	expect(video?.user.id).toBe(user.id)
 })
 
 test('User can input a YouTube URL and see validation feedback', async ({

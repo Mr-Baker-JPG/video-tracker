@@ -148,16 +148,19 @@ export async function action({ request }: Route.ActionArgs) {
 
 		// Save video metadata to database
 		// SQLite auto-commits transactions, so no need for explicit commit
-		await prisma.video.create({
+		const video = await prisma.video.create({
 			data: {
 				filename: videoFile.name,
 				url: objectKey,
 				userId,
 				// duration is nullable and can be calculated later
 			},
+			select: {
+				id: true,
+			},
 		})
 
-		return redirectWithToast('/videos/new', {
+		return redirectWithToast(`/videos/${video.id}`, {
 			title: 'Video uploaded',
 			description: `Successfully uploaded ${videoFile.name}`,
 			type: 'success',

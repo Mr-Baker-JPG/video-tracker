@@ -1042,7 +1042,7 @@ export function VideoPlayer({
 					<div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 p-4">
 						<div className="max-w-md rounded-lg border border-red-500/50 bg-red-950/90 p-4 text-center">
 							<Icon
-								name="exclamation-triangle"
+								name="triangle-alert"
 								className="mx-auto mb-2 h-8 w-8 text-red-500"
 							/>
 							<h3 className="mb-2 text-lg font-semibold text-red-100">
