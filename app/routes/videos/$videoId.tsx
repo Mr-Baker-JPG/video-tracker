@@ -939,7 +939,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 			</div>
 
 			{/* Data Table Card - Enhanced with zebra striping */}
-			<div className="flex h-[400px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+			<div className="flex h-[363px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 				<div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
 					<h3 className="text-sm font-semibold text-slate-800">Data Points</h3>
 					<span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
