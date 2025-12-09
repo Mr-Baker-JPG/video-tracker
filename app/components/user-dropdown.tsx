@@ -1,9 +1,9 @@
 import { Img } from 'openimg/react'
 import { useRef } from 'react'
 import { Link, Form } from 'react-router'
+import { ThemeSwitch } from '#app/routes/resources/theme-switch.tsx'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { useUser } from '#app/utils/user.ts'
-import { Button } from './ui/button'
 import {
 	DropdownMenu,
 	DropdownMenuTrigger,
@@ -22,7 +22,10 @@ export function UserDropdown() {
 		if (name) {
 			const parts = name.trim().split(/\s+/)
 			if (parts.length >= 2) {
-				return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+				return (
+					(parts[0]?.charAt(0) ?? '') +
+					(parts[parts.length - 1]?.charAt(0) ?? '').toUpperCase()
+				)
 			}
 			return name[0]?.toUpperCase() || username[0]?.toUpperCase() || 'U'
 		}
@@ -78,6 +81,10 @@ export function UserDropdown() {
 							</button>
 						</DropdownMenuItem>
 					</Form>
+					{/* Add theme switcher */}
+					<DropdownMenuItem asChild>
+						<ThemeSwitch asDropdownItem={true} />
+					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenuPortal>
 		</DropdownMenu>

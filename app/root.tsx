@@ -37,6 +37,7 @@ import { honeypot } from './utils/honeypot.server.ts'
 import { combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
 import { type Theme, getTheme } from './utils/theme.server.ts'
+import { getLayout } from './utils/layout.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
 import { getToast } from './utils/toast.server.ts'
 import { useOptionalUser } from './utils/user.ts'
@@ -121,6 +122,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				path: new URL(request.url).pathname,
 				userPrefs: {
 					theme: getTheme(request),
+					layout: getLayout(request),
 				},
 			},
 			ENV: getEnv(),
@@ -291,7 +293,7 @@ function Logo() {
 			className="flex cursor-pointer items-center gap-2 text-xl font-bold text-slate-900"
 		>
 			<div className="bg-primary rounded p-1 text-white">
-				<Icon name="activity" className="h-5 w-5" />
+				<Icon name="activity-log" className="h-5 w-5" />
 			</div>
 			Videotrack
 		</Link>

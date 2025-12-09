@@ -40,8 +40,10 @@ export async function action({ request }: Route.ActionArgs) {
 
 export function ThemeSwitch({
 	userPreference,
+	asDropdownItem = false,
 }: {
 	userPreference?: Theme | null
+	asDropdownItem?: boolean
 }) {
 	const fetcher = useFetcher<typeof action>()
 	const requestInfo = useRequestInfo()
@@ -52,25 +54,62 @@ export function ThemeSwitch({
 	})
 
 	const optimisticMode = useOptimisticThemeMode()
-	const mode = optimisticMode ?? userPreference ?? 'system'
+	// Get theme preference from requestInfo if not provided as prop
+	const currentPreference =
+		userPreference ?? requestInfo.userPrefs.theme ?? null
+	const mode = optimisticMode ?? currentPreference ?? 'system'
 	const nextMode =
 		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
 	const modeLabel = {
 		light: (
-			<Icon name="sun">
-				<span className="sr-only">Light</span>
+			<Icon className="text-body-md" name="sun">
+				Light
 			</Icon>
 		),
 		dark: (
-			<Icon name="moon">
-				<span className="sr-only">Dark</span>
+			<Icon className="text-body-md" name="moon">
+				Dark
 			</Icon>
 		),
 		system: (
-			<Icon name="laptop">
-				<span className="sr-only">System</span>
+			<Icon className="text-body-md" name="laptop">
+				System
 			</Icon>
 		),
+	}
+
+	const handleClick = () => {
+		const formData = new FormData()
+		formData.append('theme', nextMode)
+		// Don't include redirectTo - we'll update the theme via JavaScript
+		// This prevents a redirect and allows immediate theme switching
+		void fetcher.submit(formData, {
+			method: 'POST',
+			action: '/resources/theme-switch',
+		})
+
+		// Immediately update the document theme class for instant feedback
+		const html = document.documentElement
+		if (nextMode === 'system') {
+			// For system, use the client hint theme
+			const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+				.matches
+				? 'dark'
+				: 'light'
+			html.classList.remove('light', 'dark')
+			html.classList.add(systemTheme)
+		} else {
+			html.classList.remove('light', 'dark', 'system')
+			html.classList.add(nextMode)
+		}
+	}
+
+	if (asDropdownItem) {
+		return (
+			<button type="button" onClick={handleClick} className="w-full">
+				{modeLabel[mode]}
+			</button>
+		)
 	}
 
 	return (
