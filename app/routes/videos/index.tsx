@@ -1,16 +1,24 @@
-import { getFormProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { formatDistanceToNow } from 'date-fns'
-import { data, Form, Link } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { data, Link, useFetcher, useRevalidator } from 'react-router'
 import { z } from 'zod'
-import { ErrorList } from '#app/components/forms.tsx'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '#app/components/ui/alert-dialog.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getVideoSrc, useIsPending, useDoubleCheck } from '#app/utils/misc.tsx'
-import { redirectWithToast } from '#app/utils/toast.server.ts'
+import { getVideoSrc } from '#app/utils/misc.tsx'
 import { type Route } from './+types/index.ts'
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -71,11 +79,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 	await prisma.video.delete({ where: { id: video.id } })
 
-	return redirectWithToast('/videos', {
-		type: 'success',
-		title: 'Success',
-		description: 'Your video has been deleted.',
-	})
+	return data({ success: true })
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -85,10 +89,15 @@ function formatDuration(seconds: number | null | undefined): string {
 	return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-export default function VideosRoute({
-	loaderData,
-	actionData,
-}: Route.ComponentProps) {
+export default function VideosRoute({ loaderData }: Route.ComponentProps) {
+	// Optimistic state for videos list
+	const [optimisticVideos, setOptimisticVideos] = useState(loaderData.videos)
+
+	// Sync optimistic state with loader data when it changes
+	useEffect(() => {
+		setOptimisticVideos(loaderData.videos)
+	}, [loaderData.videos])
+
 	return (
 		<div className="min-h-screen bg-slate-50">
 			{/* Main Content */}
@@ -106,7 +115,7 @@ export default function VideosRoute({
 
 				{/* Upload Section - Visually Dominant */}
 				<div className="mb-12">
-					<div className="group relative mx-auto max-w-2xl">
+					<div className="group relative mx-auto max-w-4xl">
 						<Link
 							to="/videos/new"
 							className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-300 bg-gradient-to-br from-blue-50 to-white p-16 text-center transition-all hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-100 hover:to-blue-50 hover:shadow-xl"
@@ -149,7 +158,7 @@ export default function VideosRoute({
 				</div>
 
 				{/* Recent Analyses Section - Improved */}
-				{loaderData.videos.length > 0 && (
+				{optimisticVideos.length > 0 && (
 					<div className="mb-8">
 						<div className="mb-6 flex items-center justify-between">
 							<h2 className="text-2xl font-bold text-slate-900">
@@ -166,11 +175,16 @@ export default function VideosRoute({
 
 						{/* Video Cards Grid */}
 						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-							{loaderData.videos.map((video) => (
+							{optimisticVideos.map((video) => (
 								<VideoCard
 									key={video.id}
 									video={video}
-									actionData={actionData}
+									onDelete={(videoId) => {
+										// Optimistic UI update - remove video immediately
+										setOptimisticVideos((prev) =>
+											prev.filter((v) => v.id !== videoId),
+										)
+									}}
 								/>
 							))}
 						</div>
@@ -183,7 +197,7 @@ export default function VideosRoute({
 
 function VideoCard({
 	video,
-	actionData,
+	onDelete,
 }: {
 	video: {
 		id: string
@@ -195,14 +209,36 @@ function VideoCard({
 			trackingPoints: number
 		}
 	}
-	actionData: Route.ComponentProps['actionData']
+	onDelete: (videoId: string) => void
 }) {
-	const dc = useDoubleCheck()
-	const isPending = useIsPending()
-	const [form] = useForm({
-		id: `delete-video-${video.id}`,
-		lastResult: actionData?.result,
-	})
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+	const deleteFetcher = useFetcher<typeof action>()
+	const revalidator = useRevalidator()
+	const prevFetcherStateRef = useRef(deleteFetcher.state)
+
+	// Revalidate when delete completes successfully
+	useEffect(() => {
+		const currentState = deleteFetcher.state
+		const prevState = prevFetcherStateRef.current
+
+		// Only revalidate when transitioning from submitting/loading to idle with success
+		const isSuccess =
+			deleteFetcher.data &&
+			'success' in deleteFetcher.data &&
+			deleteFetcher.data.success === true
+
+		if (
+			(prevState === 'submitting' || prevState === 'loading') &&
+			currentState === 'idle' &&
+			isSuccess
+		) {
+			void revalidator.revalidate()
+		}
+
+		prevFetcherStateRef.current = currentState
+	}, [deleteFetcher.state, deleteFetcher.data, revalidator])
+
+	const isPending = deleteFetcher.state !== 'idle'
 
 	const timeAgo = formatDistanceToNow(new Date(video.uploadedAt), {
 		addSuffix: true,
@@ -301,35 +337,64 @@ function VideoCard({
 								</span>
 							)}
 						</div>
-
-						{/* Menu Button - Appears on hover */}
-						<div className="group/menu relative opacity-0 transition-opacity group-hover:opacity-100">
-							<Form method="POST" {...getFormProps(form)}>
-								<input type="hidden" name="videoId" value={video.id} />
-								<StatusButton
-									type="submit"
-									name="intent"
-									value="delete-video"
-									variant="ghost"
-									size="sm"
-									status={isPending ? 'pending' : (form.status ?? 'idle')}
-									disabled={isPending}
-									{...dc.getButtonProps()}
-									className="h-5 w-5 p-0 text-slate-400 transition-colors hover:text-slate-600"
-									onClick={(e) => {
-										e.preventDefault()
-										e.stopPropagation()
-										dc.getButtonProps().onClick?.(e)
-									}}
-								>
-									<Icon name="dropdown-menu" className="h-5 w-5" />
-								</StatusButton>
-							</Form>
-							<ErrorList errors={form.errors} id={form.errorId} />
-						</div>
 					</div>
 				</div>
 			</Link>
+
+			{/* Delete Button - Positioned absolutely outside Link */}
+			<div className="absolute right-3 bottom-3 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+				<StatusButton
+					type="button"
+					variant="ghost"
+					size="sm"
+					status="idle"
+					className="h-8 w-8 rounded-full p-0 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+					onClick={(e) => {
+						e.preventDefault()
+						e.stopPropagation()
+						setShowDeleteDialog(true)
+					}}
+				>
+					<Icon name="trash" className="h-4 w-4" />
+				</StatusButton>
+			</div>
+
+			{/* Delete Confirmation Dialog */}
+			<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Video</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to delete "{video.filename}"? This will
+							permanently delete the video and all associated tracking data.
+							This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-red-600 hover:bg-red-700"
+							disabled={isPending}
+							onClick={() => {
+								// Optimistic UI update - remove video immediately
+								onDelete(video.id)
+								setShowDeleteDialog(false)
+
+								// Submit delete request
+								void deleteFetcher.submit(
+									{
+										intent: 'delete-video',
+										videoId: video.id,
+									},
+									{ method: 'POST' },
+								)
+							}}
+						>
+							{isPending ? 'Deleting...' : 'Delete'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	)
 }

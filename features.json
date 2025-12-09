@@ -309,6 +309,29 @@
 			],
 			"implemented": false,
 			"tests_passed": false
+		},
+		{
+			"id": "F023",
+			"title": "Coordinate System Axis Configuration",
+			"description": "Add a button (similar to \"Set Scale\") that allows users to configure a custom x-y coordinate system on the video. Users can place the origin by clicking, drag the origin to move it, and drag a grabber handle on the x-axis (to the right of the origin) to rotate the axis. The axis visibility can be toggled on/off. Once configured, all tracking point coordinates are transformed to this new coordinate system, and graphs display data relative to the new origin and orientation. The axis configuration (origin position and rotation angle) is saved to the database and persists across sessions.",
+			"tests": [
+				"Unit test: Coordinate transformation function correctly converts tracking points from video coordinates to axis-relative coordinates",
+				"Unit test: Axis configuration can be saved to database with origin x, y, and rotation angle",
+				"Unit test: Axis configuration can be loaded from database",
+				"Unit test: Axis visibility toggle shows/hides axis on canvas",
+				"E2E test: User can click button to activate axis configuration mode",
+				"E2E test: User can place axis origin by clicking on video",
+				"E2E test: User can drag origin point to move axis",
+				"E2E test: User can drag x-axis grabber handle to rotate axis",
+				"E2E test: User can toggle axis visibility on/off",
+				"E2E test: Axis configuration persists after page reload",
+				"E2E test: Tracking points are transformed to new coordinate system after axis is set",
+				"Manual: Verify axis appears correctly with x and y lines and grabber handle",
+				"Manual: Verify smooth dragging and rotation interactions",
+				"Manual: Verify graphs show transformed coordinates correctly"
+			],
+			"implemented": false,
+			"tests_passed": false
 		}
 	]
 }
