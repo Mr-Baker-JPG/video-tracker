@@ -72,3 +72,4 @@ export function generateTrackingDataCSV(
 	// Combine header and rows
 	return [headers.join(','), ...rows].join('\n')
 }
+

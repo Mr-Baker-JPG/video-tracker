@@ -74,7 +74,9 @@ describe('VideoAnalysisDashboard', () => {
 			.closest('.rounded-lg.border')
 		expect(distanceCard).toHaveTextContent('px')
 
-		const velocityCard = screen.getByText('Avg Velocity').closest('.rounded-lg.border')
+		const velocityCard = screen
+			.getByText('Avg Velocity')
+			.closest('.rounded-lg.border')
 		expect(velocityCard).toHaveTextContent('px/s')
 	})
 
@@ -112,10 +114,14 @@ describe('VideoAnalysisDashboard', () => {
 			.closest('.rounded-lg.border')
 		expect(distanceCard).toHaveTextContent('m')
 
-		const velocityCard = screen.getByText('Avg Velocity').closest('.rounded-lg.border')
+		const velocityCard = screen
+			.getByText('Avg Velocity')
+			.closest('.rounded-lg.border')
 		expect(velocityCard).toHaveTextContent('m/s')
 
-		const accelerationCard = screen.getByText('Acceleration').closest('.rounded-lg.border')
+		const accelerationCard = screen
+			.getByText('Acceleration')
+			.closest('.rounded-lg.border')
 		expect(accelerationCard).toHaveTextContent('m/s²')
 	})
 

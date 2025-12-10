@@ -35,3 +35,4 @@ test('Export validation logic prevents export when no tracking points exist', as
 	await prisma.video.delete({ where: { id: video.id } })
 	await prisma.user.delete({ where: { id: user.id } })
 })
+

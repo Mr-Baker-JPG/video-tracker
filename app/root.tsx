@@ -203,8 +203,25 @@ function App() {
 	const theme = useTheme()
 	const matches = useMatches()
 	const isOnSearchPage = matches.find((m) => m.id === 'routes/users/index')
+	const isMarketingRoute = matches.some((m) =>
+		m.id?.startsWith('routes/_marketing'),
+	)
 	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
+
+	// Marketing routes have their own full-page layout
+	if (isMarketingRoute) {
+		return (
+			<OpenImgContextProvider
+				optimizerEndpoint="/resources/images"
+				getSrc={getImgSrc}
+			>
+				<Outlet />
+				<EpicToaster closeButton position="top-center" theme={theme} />
+				<EpicProgress />
+			</OpenImgContextProvider>
+		)
+	}
 
 	return (
 		<OpenImgContextProvider

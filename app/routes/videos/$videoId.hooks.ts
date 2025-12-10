@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFetcher, useRevalidator } from 'react-router'
 import { useLayout } from '#app/routes/resources/layout-switch.tsx'
-import type { TrackingObject } from './$videoId.types.ts'
+import { type TrackingObject } from './$videoId.types.ts'
 
 // Tracking Objects Hook
 export function useTrackingObjects(

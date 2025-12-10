@@ -142,9 +142,9 @@ test('Multiple tracking points can be stored for same video', async () => {
 	})
 
 	expect(allPoints).toHaveLength(3)
-	expect(allPoints[0].frame).toBe(0)
-	expect(allPoints[1].frame).toBe(10)
-	expect(allPoints[2].frame).toBe(20)
+	expect(allPoints[0]?.frame).toBe(0)
+	expect(allPoints[1]?.frame).toBe(10)
+	expect(allPoints[2]?.frame).toBe(20)
 })
 
 test('Multiple tracking points can be stored for same object', async () => {
@@ -211,9 +211,9 @@ test('Multiple tracking points can be stored for same object', async () => {
 	})
 
 	expect(objectPoints).toHaveLength(3)
-	expect(objectPoints[0].frame).toBe(0)
-	expect(objectPoints[1].frame).toBe(10)
-	expect(objectPoints[2].frame).toBe(20)
+	expect(objectPoints?.[0]?.frame).toBe(0)
+	expect(objectPoints?.[1]?.frame).toBe(10)
+	expect(objectPoints?.[2]?.frame).toBe(20)
 })
 
 test('Points are associated with correct frame numbers', async () => {
@@ -442,15 +442,15 @@ test('Export function generates correct CSV format', () => {
 
 	// Check that CSV has data rows
 	const lines = csv.split('\n')
-	expect(lines.length).toBe(4) // 1 header + 3 data rows
+	expect(lines?.length).toBe(4) // 1 header + 3 data rows
 
 	// Check first data row
-	const firstDataRow = lines[1].split(',')
-	expect(firstDataRow[0]).toBe('obj1') // trackingObjectId
-	expect(firstDataRow[1]).toBe('0') // frame
-	expect(firstDataRow[2]).toBe('0.000000') // time (0 / 30 = 0)
-	expect(firstDataRow[3]).toBe('100.50') // x
-	expect(firstDataRow[4]).toBe('200.75') // y
+	const firstDataRow = lines[1]?.split(',')
+	expect(firstDataRow?.[0]).toBe('obj1') // trackingObjectId
+	expect(firstDataRow?.[1]).toBe('0') // frame
+	expect(firstDataRow?.[2]).toBe('0.000000') // time (0 / 30 = 0)
+	expect(firstDataRow?.[3]).toBe('100.50') // x
+	expect(firstDataRow?.[4]).toBe('200.75') // y
 })
 
 test('CSV includes all required columns', () => {
@@ -461,7 +461,7 @@ test('CSV includes all required columns', () => {
 	// Test without scale
 	const csvWithoutScale = generateTrackingDataCSV(trackingPoints, null, null)
 	const linesWithoutScale = csvWithoutScale.split('\n')
-	const headerWithoutScale = linesWithoutScale[0].split(',')
+	const headerWithoutScale = linesWithoutScale?.[0]?.split(',')
 
 	expect(headerWithoutScale).toEqual([
 		'trackingObjectId',
@@ -475,7 +475,7 @@ test('CSV includes all required columns', () => {
 	const scale = { pixelsPerMeter: 100 }
 	const csvWithScale = generateTrackingDataCSV(trackingPoints, scale, null)
 	const linesWithScale = csvWithScale.split('\n')
-	const headerWithScale = linesWithScale[0].split(',')
+	const headerWithScale = linesWithScale?.[0]?.split(',')
 
 	expect(headerWithScale).toEqual([
 		'trackingObjectId',
@@ -498,27 +498,27 @@ test('CSV includes meter conversions when scale is set', () => {
 	const csv = generateTrackingDataCSV(trackingPoints, scale, null)
 
 	const lines = csv.split('\n')
-	expect(lines.length).toBe(3) // 1 header + 2 data rows
+	expect(lines?.length).toBe(3) // 1 header + 2 data rows
 
 	// Check first data row with meter conversions
-	const firstDataRow = lines[1].split(',')
-	expect(firstDataRow[0]).toBe('obj1')
-	expect(firstDataRow[1]).toBe('0')
-	expect(firstDataRow[2]).toBe('0.000000') // time = 0 / 30
-	expect(firstDataRow[3]).toBe('100.00') // x pixels
-	expect(firstDataRow[4]).toBe('200.00') // y pixels
-	expect(firstDataRow[5]).toBe('1.000000') // x meters = 100 / 100
-	expect(firstDataRow[6]).toBe('2.000000') // y meters = 200 / 100
+	const firstDataRow = lines?.[1]?.split(',')
+	expect(firstDataRow?.[0]).toBe('obj1')
+	expect(firstDataRow?.[1]).toBe('0')
+	expect(firstDataRow?.[2]).toBe('0.000000') // time = 0 / 30
+	expect(firstDataRow?.[3]).toBe('100.00') // x pixels
+	expect(firstDataRow?.[4]).toBe('200.00') // y pixels
+	expect(firstDataRow?.[5]).toBe('1.000000') // x meters = 100 / 100
+	expect(firstDataRow?.[6]).toBe('2.000000') // y meters = 200 / 100
 
 	// Check second data row
-	const secondDataRow = lines[2].split(',')
-	expect(secondDataRow[0]).toBe('obj1')
-	expect(secondDataRow[1]).toBe('30')
-	expect(secondDataRow[2]).toBe('1.000000') // time = 30 / 30
-	expect(secondDataRow[3]).toBe('200.00') // x pixels
-	expect(secondDataRow[4]).toBe('400.00') // y pixels
-	expect(secondDataRow[5]).toBe('2.000000') // x meters = 200 / 100
-	expect(secondDataRow[6]).toBe('4.000000') // y meters = 400 / 100
+	const secondDataRow = lines?.[2]?.split(',')
+	expect(secondDataRow?.[0]).toBe('obj1')
+	expect(secondDataRow?.[1]).toBe('30')
+	expect(secondDataRow?.[2]).toBe('1.000000') // time = 30 / 30
+	expect(secondDataRow?.[3]).toBe('200.00') // x pixels
+	expect(secondDataRow?.[4]).toBe('400.00') // y pixels
+	expect(secondDataRow?.[5]).toBe('2.000000') // x meters = 200 / 100
+	expect(secondDataRow?.[6]).toBe('4.000000') // y meters = 400 / 100
 })
 
 test('Export action returns CSV file for valid video', async () => {
@@ -728,12 +728,12 @@ test('Tracking session can be saved to database', async () => {
 	})
 
 	expect(savedPoints).toHaveLength(3)
-	expect(savedPoints[0].frame).toBe(0)
-	expect(savedPoints[1].frame).toBe(30)
-	expect(savedPoints[2].frame).toBe(60)
-	expect(savedPoints[0].trackingObjectId).toBe('obj_session_1')
-	expect(savedPoints[1].trackingObjectId).toBe('obj_session_1')
-	expect(savedPoints[2].trackingObjectId).toBe('obj_session_1')
+	expect(savedPoints?.[0]?.frame).toBe(0)
+	expect(savedPoints?.[1]?.frame).toBe(30)
+	expect(savedPoints?.[2]?.frame).toBe(60)
+	expect(savedPoints?.[0]?.trackingObjectId).toBe('obj_session_1')
+	expect(savedPoints?.[1]?.trackingObjectId).toBe('obj_session_1')
+	expect(savedPoints?.[2]?.trackingObjectId).toBe('obj_session_1')
 
 	// Verify scale is saved
 	const savedScale = await prisma.videoScale.findUnique({
@@ -840,20 +840,20 @@ test('Tracking session can be loaded from database', async () => {
 
 	// Verify all session data is loaded correctly
 	expect(loadedTrackingPoints).toHaveLength(3)
-	expect(loadedTrackingPoints[0].frame).toBe(0)
-	expect(loadedTrackingPoints[0].x).toBe(100)
-	expect(loadedTrackingPoints[0].y).toBe(200)
-	expect(loadedTrackingPoints[0].trackingObjectId).toBe('obj_load_1')
+	expect(loadedTrackingPoints?.[0]?.frame).toBe(0)
+	expect(loadedTrackingPoints?.[0]?.x).toBe(100)
+	expect(loadedTrackingPoints?.[0]?.y).toBe(200)
+	expect(loadedTrackingPoints?.[0]?.trackingObjectId).toBe('obj_load_1')
 
-	expect(loadedTrackingPoints[1].frame).toBe(30)
-	expect(loadedTrackingPoints[1].x).toBe(150)
-	expect(loadedTrackingPoints[1].y).toBe(250)
-	expect(loadedTrackingPoints[1].trackingObjectId).toBe('obj_load_1')
+	expect(loadedTrackingPoints?.[1]?.frame).toBe(30)
+	expect(loadedTrackingPoints?.[1]?.x).toBe(150)
+	expect(loadedTrackingPoints?.[1]?.y).toBe(250)
+	expect(loadedTrackingPoints?.[1]?.trackingObjectId).toBe('obj_load_1')
 
-	expect(loadedTrackingPoints[2].frame).toBe(60)
-	expect(loadedTrackingPoints[2].x).toBe(200)
-	expect(loadedTrackingPoints[2].y).toBe(300)
-	expect(loadedTrackingPoints[2].trackingObjectId).toBe('obj_load_2')
+	expect(loadedTrackingPoints?.[2]?.frame).toBe(60)
+	expect(loadedTrackingPoints?.[2]?.x).toBe(200)
+	expect(loadedTrackingPoints?.[2]?.y).toBe(300)
+	expect(loadedTrackingPoints?.[2]?.trackingObjectId).toBe('obj_load_2')
 
 	expect(loadedScale).toBeDefined()
 	expect(loadedScale?.startX).toBe(50)

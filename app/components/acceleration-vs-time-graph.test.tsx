@@ -170,3 +170,4 @@ test('Graph handles multiple tracking objects', () => {
 	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 })
 
+

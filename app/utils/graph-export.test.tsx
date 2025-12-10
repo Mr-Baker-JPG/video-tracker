@@ -240,3 +240,4 @@ describe('exportGraphAsPNG', () => {
 		consoleErrorSpy.mockRestore()
 	})
 })
+

@@ -260,3 +260,4 @@ describe('calculateStatistics', () => {
 		expect(result.totalDistance).toBeCloseTo(141.42, 1)
 	})
 })
+
