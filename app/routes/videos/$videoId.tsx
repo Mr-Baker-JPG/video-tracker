@@ -1291,7 +1291,10 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 
 	// Graph component (for below video player)
 	const GraphSection = () => (
-		<div className="flex min-h-[400px] min-w-[200px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+		<div
+			key={activeTool}
+			className="flex min-h-[400px] min-w-[200px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+		>
 			<Tabs defaultValue="position" className="flex h-full flex-col">
 				{/* Tab header - Primary, not secondary */}
 				<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
@@ -1541,26 +1544,35 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 											<ToggleGroupItem
 												value="scale"
 												aria-label="Set Scale"
-												className="gap-2"
+												title="Set Scale"
+												className={isFullWidthLayout ? 'gap-2' : ''}
 											>
 												<Icon name="ruler-dimension-line" className="h-4 w-4" />
-												Set Scale
+												<span className={isFullWidthLayout ? '' : 'sr-only'}>
+													Set Scale
+												</span>
 											</ToggleGroupItem>
 											<ToggleGroupItem
 												value="origin"
 												aria-label="Set Origin"
-												className="gap-2"
+												title="Set Origin"
+												className={isFullWidthLayout ? 'gap-2' : ''}
 											>
 												<Icon name="move-3d" className="h-4 w-4" />
-												Set Origin
+												<span className={isFullWidthLayout ? '' : 'sr-only'}>
+													Set Origin
+												</span>
 											</ToggleGroupItem>
 											<ToggleGroupItem
 												value="track"
 												aria-label="Track Object"
-												className="gap-2"
+												title="Track Object"
+												className={isFullWidthLayout ? 'gap-2' : ''}
 											>
 												<Icon name="crosshair-2" className="h-4 w-4" />
-												Track Object
+												<span className={isFullWidthLayout ? '' : 'sr-only'}>
+													Track Object
+												</span>
 											</ToggleGroupItem>
 										</ToggleGroup>
 										<div className="h-6 w-px bg-slate-200" />
@@ -1914,29 +1926,38 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 												<ToggleGroupItem
 													value="scale"
 													aria-label="Set Scale"
-													className="gap-2"
+													title="Set Scale"
+													className={isFullWidthLayout ? 'gap-2' : ''}
 												>
 													<Icon
 														name="ruler-dimension-line"
 														className="h-4 w-4"
 													/>
-													Set Scale
+													<span className={isFullWidthLayout ? '' : 'sr-only'}>
+														Set Scale
+													</span>
 												</ToggleGroupItem>
 												<ToggleGroupItem
 													value="origin"
 													aria-label="Set Origin"
-													className="gap-2"
+													title="Set Origin"
+													className={isFullWidthLayout ? 'gap-2' : ''}
 												>
 													<Icon name="move-3d" className="h-4 w-4" />
-													Set Origin
+													<span className={isFullWidthLayout ? '' : 'sr-only'}>
+														Set Origin
+													</span>
 												</ToggleGroupItem>
 												<ToggleGroupItem
 													value="track"
 													aria-label="Track Object"
-													className="gap-2"
+													title="Track Object"
+													className={isFullWidthLayout ? 'gap-2' : ''}
 												>
 													<Icon name="crosshair-2" className="h-4 w-4" />
-													Track Object
+													<span className={isFullWidthLayout ? '' : 'sr-only'}>
+														Track Object
+													</span>
 												</ToggleGroupItem>
 											</ToggleGroup>
 											<div className="h-6 w-px bg-slate-200" />
