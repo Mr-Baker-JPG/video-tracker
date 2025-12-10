@@ -163,6 +163,15 @@ test('Multiple tracking points can be stored for same object', async () => {
 
 	const trackingObjectId = 'obj_track_1'
 
+	// Create tracking object first (required for foreign key constraint)
+	await prisma.trackingObject.create({
+		data: {
+			id: trackingObjectId,
+			videoId: video.id,
+			name: 'Test Object',
+		},
+	})
+
 	// Create multiple tracking points for the same object across different frames
 	const points = await Promise.all([
 		prisma.trackingPoint.create({

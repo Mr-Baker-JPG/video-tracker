@@ -158,7 +158,7 @@ test('Video list shows empty state when no videos', async () => {
 			screen.getByRole('heading', { name: /upload your experiment video/i }),
 		).toBeInTheDocument()
 		expect(
-			screen.getByText(/drag and drop mp4, webm or mov/i),
+			screen.getByText(/drag video here or click to choose file/i),
 		).toBeInTheDocument()
 	})
 })
@@ -236,53 +236,36 @@ test(
 			expect(screen.getByText('test-video-to-delete.mp4')).toBeInTheDocument()
 		})
 
-		// Find delete form by hidden input with video ID
-		const deleteForm = screen.getByDisplayValue(video.id).closest('form')
-		expect(deleteForm).toBeInTheDocument()
-
 		// Verify video exists before deletion
 		const videoBefore = await prisma.video.findUnique({
 			where: { id: video.id },
 		})
 		expect(videoBefore).toBeDefined()
 
-		// Submit delete form
+		// Find the delete button (trash icon) - it's hidden until hover, so we need to query it directly
 		const userEventInstance = userEvent.setup()
-		let deleteButton = deleteForm?.querySelector('button[type="submit"]')
+		const videoCard = screen.getByText('test-video-to-delete.mp4').closest('.group')
+		expect(videoCard).toBeInTheDocument()
+
+		// Find delete button by aria-label or role
+		const deleteButton = videoCard?.querySelector('button[aria-label*="delete" i], button:has(svg)')
 		expect(deleteButton).toBeInTheDocument()
 
-		// First click should show double-check state (prevents default)
+		// Click delete button to open dialog
 		await userEventInstance.click(deleteButton!)
 
-		// Wait a bit for state to update
-		await waitFor(
-			() => {
-				deleteButton = deleteForm?.querySelector('button[type="submit"]')
-				expect(deleteButton).toBeInTheDocument()
-			},
-			{ timeout: 1000 },
-		)
+		// Wait for dialog to appear
+		await waitFor(() => {
+			expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument()
+		})
 
-		// On second click, the double-check hook should allow form submission
-		// The component's onClick always prevents default, but on second click
-		// the double-check state should allow the form to submit
-		// Click the button again to trigger the second click
-		await userEventInstance.click(deleteButton!)
+		// Find and click the confirm delete button in the dialog
+		const confirmDeleteButton = screen.getByRole('button', { name: /^delete$/i })
+		expect(confirmDeleteButton).toBeInTheDocument()
 
-		// Also try submitting the form directly as a workaround
-		// In the actual component, the form should submit on second click
-		// but the onClick handler might be preventing it, so we submit directly
-		if (deleteForm instanceof HTMLFormElement) {
-			// Create a submit event and dispatch it
-			const submitEvent = new Event('submit', {
-				bubbles: true,
-				cancelable: true,
-			})
-			deleteForm.dispatchEvent(submitEvent)
-		}
+		await userEventInstance.click(confirmDeleteButton)
 
-		// Wait for form submission and deletion to complete
-		// The form submission should trigger the action which deletes the video
+		// Wait for deletion to complete
 		await waitFor(
 			async () => {
 				const videoAfter = await prisma.video.findUnique({
