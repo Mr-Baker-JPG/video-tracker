@@ -824,7 +824,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		// If clicking a different button, value will be that button's value
 		const tool =
 			value === '' ? undefined : (value as 'scale' | 'origin' | 'track')
-		
+
 		setActiveTool(tool)
 
 		// Update mode states based on selected tool
@@ -1907,7 +1907,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 											<div className="h-6 w-px bg-slate-200" />
 											<ToggleGroup
 												type="single"
-												value={activeTool}
+												value={activeTool || ''}
 												onValueChange={handleToolChange}
 												className="gap-2"
 											>
