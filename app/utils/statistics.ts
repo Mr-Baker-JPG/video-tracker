@@ -129,7 +129,11 @@ function calculateVelocity(
 		let x = point.x
 		let y = point.y
 		if (axisConfig) {
-			const transformed = transformToAxisCoordinates(point.x, point.y, axisConfig)
+			const transformed = transformToAxisCoordinates(
+				point.x,
+				point.y,
+				axisConfig,
+			)
 			x = transformed.x
 			y = transformed.y
 		}

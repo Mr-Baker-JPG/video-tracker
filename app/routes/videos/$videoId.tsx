@@ -1,11 +1,9 @@
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { data, useFetcher, useRevalidator } from 'react-router'
 import { z } from 'zod'
-import { requireUserId } from '#app/utils/auth.server.ts'
-import { transformToAxisCoordinates } from '#app/utils/coordinate-transform.ts'
 import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
 import {
@@ -36,11 +34,16 @@ import {
 	TabsList,
 	TabsTrigger,
 } from '#app/components/ui/tabs.tsx'
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from '#app/components/ui/toggle-group.tsx'
 import { VelocityVsTimeGraph } from '#app/components/velocity-vs-time-graph.tsx'
 import { VideoAnalysisDashboard } from '#app/components/video-analysis-dashboard.tsx'
 import { VideoPlayer } from '#app/components/video-player.tsx'
 import { useLayout } from '#app/routes/resources/layout-switch.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { transformToAxisCoordinates } from '#app/utils/coordinate-transform.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getVideoSrc } from '#app/utils/misc.tsx'
 import { getActiveTrackingObjectId } from '#app/utils/tracking-object-selection.server.ts'
@@ -196,7 +199,6 @@ export function generateTrackingDataCSV(
 	scale: { pixelsPerMeter: number } | null,
 	axis: { originX: number; originY: number; rotationAngle: number } | null,
 ): string {
-
 	// CSV header
 	const hasScale = scale !== null
 	const hasAxis = axis !== null
@@ -751,6 +753,10 @@ export async function action({ request }: Route.ActionArgs) {
 export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const [isScaleCalibrationMode, setIsScaleCalibrationMode] = useState(false)
 	const [isAxisConfigurationMode, setIsAxisConfigurationMode] = useState(false)
+	const [activeTool, setActiveTool] = useState<
+		'scale' | 'origin' | 'track' | undefined
+	>(undefined)
+	const [currentAxis, setCurrentAxis] = useState(loaderData.axis)
 	const [activeTrackingObjectId, setActiveTrackingObjectId] = useState<
 		string | null
 	>(loaderData.activeTrackingObjectId ?? null)
@@ -775,10 +781,21 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	const clearPointsFetcher = useFetcher()
 	const trackingObjectSelectionFetcher = useFetcher()
 	const revalidator = useRevalidator()
+	const prevLayoutPreferenceRef = useRef(layoutPreference)
 
-	// Sync layout state with preference changes
+	// Sync layout state with preference changes (only when actually changed)
 	useEffect(() => {
-		setIsFullWidthLayout(layoutPreference === 'full-width')
+		if (prevLayoutPreferenceRef.current !== layoutPreference) {
+			const newLayoutPreference = layoutPreference === 'full-width'
+			// Only update if the actual boolean value would change
+			setIsFullWidthLayout((prev) => {
+				if (prev !== newLayoutPreference) {
+					return newLayoutPreference
+				}
+				return prev
+			})
+			prevLayoutPreferenceRef.current = layoutPreference
+		}
 	}, [layoutPreference])
 
 	// Optimistic updates for tracking objects
@@ -796,6 +813,34 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		setActiveTrackingObjectId(loaderData.activeTrackingObjectId ?? null)
 	}, [loaderData.activeTrackingObjectId])
 
+	// Memoize axis change handler to prevent unnecessary re-renders
+	const handleAxisChange = useCallback((axis: typeof loaderData.axis) => {
+		setCurrentAxis(axis)
+	}, [])
+
+	// Handle tool selection - supports toggling on/off
+	const handleToolChange = (value: string) => {
+		// If clicking the same button, value will be empty string (deselect)
+		// If clicking a different button, value will be that button's value
+		const tool =
+			value === '' ? undefined : (value as 'scale' | 'origin' | 'track')
+		
+		setActiveTool(tool)
+
+		// Update mode states based on selected tool
+		if (tool === 'scale') {
+			setIsScaleCalibrationMode(true)
+			setIsAxisConfigurationMode(false)
+		} else if (tool === 'origin') {
+			setIsScaleCalibrationMode(false)
+			setIsAxisConfigurationMode(true)
+		} else {
+			// tool is undefined - turn off all modes
+			setIsScaleCalibrationMode(false)
+			setIsAxisConfigurationMode(false)
+		}
+	}
+
 	// Helper to update active tracking object ID and persist to session
 	const updateActiveTrackingObjectId = (trackingObjectId: string | null) => {
 		setActiveTrackingObjectId(trackingObjectId)
@@ -811,10 +856,19 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		)
 	}
 
-	// Helper to get tracking object name (uses optimistic state)
+	// Helper to get tracking object name (uses optimistic state, falls back to loader data)
 	const getTrackingObjectName = (id: string): string => {
-		const obj = optimisticTrackingObjects.find((o) => o.id === id)
-		return obj?.name || `Object ${id.slice(-6)}`
+		// First check optimistic state
+		let obj = optimisticTrackingObjects.find((o) => o.id === id)
+		// Fall back to loader data if not found in optimistic state
+		if (!obj) {
+			obj = loaderData.trackingObjects.find((o) => o.id === id)
+		}
+		// Return the name if it exists and is not empty, otherwise use fallback
+		if (obj?.name && typeof obj.name === 'string' && obj.name.trim()) {
+			return obj.name
+		}
+		return `Object ${id.slice(-6)}`
 	}
 
 	// Helper to get tracking object color (uses optimistic state)
@@ -890,6 +944,14 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 	// Track previous fetcher state to detect transitions
 	const prevFetcherStateRef = useRef(trackingObjectsFetcher.state)
 	const prevClearPointsFetcherStateRef = useRef(clearPointsFetcher.state)
+	const lastRevalidatedTrackingObjectsRef = useRef<number>(0)
+	const lastRevalidatedClearPointsRef = useRef<number>(0)
+	const prevGraphPropsRef = useRef<{
+		trackingPoints: typeof loaderData.trackingPoints
+		trackingObjects: typeof optimisticTrackingObjects
+		scale: typeof loaderData.scale
+		axis: typeof currentAxis
+	} | null>(null)
 
 	// Revalidate loader data when fetcher completes successfully (only once per update)
 	useEffect(() => {
@@ -903,7 +965,12 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 			currentState === 'idle' &&
 			trackingObjectsFetcher.data?.success
 		) {
-			void revalidator.revalidate()
+			// Prevent revalidating multiple times for the same operation
+			const now = Date.now()
+			if (now - lastRevalidatedTrackingObjectsRef.current > 100) {
+				lastRevalidatedTrackingObjectsRef.current = now
+				void revalidator.revalidate()
+			}
 		}
 
 		prevFetcherStateRef.current = currentState
@@ -924,7 +991,12 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 			currentState === 'idle' &&
 			clearPointsFetcher.data?.success
 		) {
-			void revalidator.revalidate()
+			// Prevent revalidating multiple times for the same operation
+			const now = Date.now()
+			if (now - lastRevalidatedClearPointsRef.current > 100) {
+				lastRevalidatedClearPointsRef.current = now
+				void revalidator.revalidate()
+			}
 		}
 
 		prevClearPointsFetcherStateRef.current = currentState
@@ -1051,7 +1123,7 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								<VideoAnalysisDashboard
 									trackingPoints={loaderData.trackingPoints}
 									scale={loaderData.scale}
-									axis={loaderData.axis}
+									axis={currentAxis}
 								/>
 							</div>
 						</motion.div>
@@ -1080,12 +1152,26 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 						<tbody className="divide-y divide-slate-100">
 							{sortedPoints.map((point, index) => {
 								const time = point.frame / 30
+
+								// Transform coordinates if axis is configured
+								let x = point.x
+								let y = point.y
+								if (currentAxis) {
+									const transformed = transformToAxisCoordinates(
+										point.x,
+										point.y,
+										currentAxis,
+									)
+									x = transformed.x
+									y = transformed.y
+								}
+
 								const xMeters = loaderData.scale
-									? point.x / loaderData.scale.pixelsPerMeter
-									: point.x
+									? x / loaderData.scale.pixelsPerMeter
+									: x
 								const yMeters = loaderData.scale
-									? point.y / loaderData.scale.pixelsPerMeter
-									: point.y
+									? y / loaderData.scale.pixelsPerMeter
+									: y
 								const isCurrent = point.frame === currentFrame
 
 								return (
@@ -1129,18 +1215,14 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 												isCurrent ? 'font-bold text-blue-600' : 'text-slate-600'
 											}`}
 										>
-											{loaderData.scale
-												? xMeters.toFixed(2)
-												: point.x.toFixed(2)}
+											{loaderData.scale ? xMeters.toFixed(2) : x.toFixed(2)}
 										</td>
 										<td
 											className={`px-4 py-2 font-mono ${
 												isCurrent ? 'font-bold text-blue-600' : 'text-slate-600'
 											}`}
 										>
-											{loaderData.scale
-												? yMeters.toFixed(2)
-												: point.y.toFixed(2)}
+											{loaderData.scale ? yMeters.toFixed(2) : y.toFixed(2)}
 										</td>
 									</tr>
 								)
@@ -1163,9 +1245,53 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 		</div>
 	)
 
+	// Memoize graph props with deep equality checking to prevent unnecessary re-renders
+	// Only update when the actual data content changes, not just object references
+	const graphProps = useMemo(() => {
+		// Create string keys for deep comparison
+		const trackingPointsKey = JSON.stringify(loaderData.trackingPoints)
+		const trackingObjectsKey = JSON.stringify(optimisticTrackingObjects)
+		const scaleKey = JSON.stringify(loaderData.scale)
+		const axisKey = JSON.stringify(currentAxis)
+
+		// Check if anything actually changed
+		const prevProps = prevGraphPropsRef.current
+		if (prevProps) {
+			const prevTrackingPointsKey = JSON.stringify(prevProps.trackingPoints)
+			const prevTrackingObjectsKey = JSON.stringify(prevProps.trackingObjects)
+			const prevScaleKey = JSON.stringify(prevProps.scale)
+			const prevAxisKey = JSON.stringify(prevProps.axis)
+
+			// If nothing changed, return previous props to maintain reference equality
+			if (
+				trackingPointsKey === prevTrackingPointsKey &&
+				trackingObjectsKey === prevTrackingObjectsKey &&
+				scaleKey === prevScaleKey &&
+				axisKey === prevAxisKey
+			) {
+				return prevProps
+			}
+		}
+
+		// Data changed, create new props object
+		const newProps = {
+			trackingPoints: loaderData.trackingPoints,
+			trackingObjects: optimisticTrackingObjects,
+			scale: loaderData.scale,
+			axis: currentAxis,
+		}
+		prevGraphPropsRef.current = newProps
+		return newProps
+	}, [
+		loaderData.trackingPoints,
+		optimisticTrackingObjects,
+		loaderData.scale,
+		currentAxis,
+	])
+
 	// Graph component (for below video player)
 	const GraphSection = () => (
-		<div className="flex min-h-[400px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+		<div className="flex min-h-[400px] min-w-[200px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 			<Tabs defaultValue="position" className="flex h-full flex-col">
 				{/* Tab header - Primary, not secondary */}
 				<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
@@ -1176,40 +1302,43 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 					</TabsList>
 				</div>
 				{/* Graph area with card container */}
-				<div className="flex-1 p-6">
-					<div className="h-full rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
+				<div className="flex min-h-0 flex-1 p-6">
+					<div className="flex h-full min-h-[400px] w-full rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
 						<TabsContent
 							value="position"
-							className="mt-0 flex-1 overflow-hidden"
+							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+							style={{ minHeight: 400, minWidth: 1 }}
 						>
 							<PositionVsTimeGraph
-								trackingPoints={loaderData.trackingPoints}
-								trackingObjects={optimisticTrackingObjects}
-								scale={loaderData.scale}
-								axis={loaderData.axis}
+								trackingPoints={graphProps.trackingPoints}
+								trackingObjects={graphProps.trackingObjects}
+								scale={graphProps.scale}
+								axis={graphProps.axis}
 							/>
 						</TabsContent>
 						<TabsContent
 							value="velocity"
-							className="mt-0 flex-1 overflow-hidden"
+							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+							style={{ minHeight: 400 }}
 						>
-							<VelocityVsTimeGraph
+							{/* <VelocityVsTimeGraph
 								trackingPoints={loaderData.trackingPoints}
 								trackingObjects={optimisticTrackingObjects}
 								scale={loaderData.scale}
-								axis={loaderData.axis}
-							/>
+								axis={currentAxis}
+							/> */}
 						</TabsContent>
 						<TabsContent
 							value="acceleration"
-							className="mt-0 flex-1 overflow-hidden"
+							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+							style={{ minHeight: 400 }}
 						>
-							<AccelerationVsTimeGraph
+							{/* <AccelerationVsTimeGraph
 								trackingPoints={loaderData.trackingPoints}
 								trackingObjects={optimisticTrackingObjects}
 								scale={loaderData.scale}
-								axis={loaderData.axis}
-							/>
+								axis={currentAxis}
+							/> */}
 						</TabsContent>
 					</div>
 				</div>
@@ -1360,6 +1489,19 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								originY: 0,
 							}}
 						>
+							<div className="flex flex-col gap-4">
+								{loaderData.axis && (
+									<div className="flex flex-col gap-2">
+										<div className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+											Axis
+										</div>
+										<div className="text-xs text-slate-500">
+											{loaderData.axis.originX}, {loaderData.axis.originY}{' '}
+											{loaderData.axis.rotationAngle}
+										</div>
+									</div>
+								)}
+							</div>
 							{/* Video Player Container */}
 							<VideoPlayer
 								src={loaderData.videoSrc}
@@ -1374,10 +1516,12 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								axis={loaderData.axis}
 								isAxisConfigurationModeExternal={isAxisConfigurationMode}
 								onAxisConfigurationModeChange={setIsAxisConfigurationMode}
+								onAxisChange={handleAxisChange}
 								onCurrentTimeChange={setCurrentVideoTime}
 								onSeekToFrameRef={(seekFn) => {
 									seekToFrameRef.current = seekFn
 								}}
+								activeTool={activeTool}
 							/>
 
 							{/* Tools Bar - Step-based design */}
@@ -1388,42 +1532,37 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 											Tools
 										</span>
 										<div className="h-6 w-px bg-slate-200" />
-										<Button
-											type="button"
-											variant={isScaleCalibrationMode ? 'default' : 'outline'}
-											size="default"
+										<ToggleGroup
+											type="single"
+											value={activeTool || ''}
+											onValueChange={handleToolChange}
 											className="gap-2"
-											title="Set Scale"
-											onClick={() =>
-												setIsScaleCalibrationMode(!isScaleCalibrationMode)
-											}
 										>
-											<Icon name="file" className="h-4 w-4" />
-											Set Scale
-										</Button>
-										<Button
-											type="button"
-											variant={isAxisConfigurationMode ? 'default' : 'outline'}
-											size="default"
-											className="gap-2"
-											title="Set Axis"
-											onClick={() =>
-												setIsAxisConfigurationMode(!isAxisConfigurationMode)
-											}
-										>
-											<Icon name="crosshair-2" className="h-4 w-4" />
-											Set Axis
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											size="default"
-											className="gap-2"
-											title="Track Object"
-										>
-											<Icon name="crosshair-2" className="h-4 w-4" />
-											Track Object
-										</Button>
+											<ToggleGroupItem
+												value="scale"
+												aria-label="Set Scale"
+												className="gap-2"
+											>
+												<Icon name="ruler-dimension-line" className="h-4 w-4" />
+												Set Scale
+											</ToggleGroupItem>
+											<ToggleGroupItem
+												value="origin"
+												aria-label="Set Origin"
+												className="gap-2"
+											>
+												<Icon name="move-3d" className="h-4 w-4" />
+												Set Origin
+											</ToggleGroupItem>
+											<ToggleGroupItem
+												value="track"
+												aria-label="Track Object"
+												className="gap-2"
+											>
+												<Icon name="crosshair-2" className="h-4 w-4" />
+												Track Object
+											</ToggleGroupItem>
+										</ToggleGroup>
 										<div className="h-6 w-px bg-slate-200" />
 										<Button
 											type="button"
@@ -1433,16 +1572,19 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 											title={isFullWidthLayout ? 'Show Sidebar' : 'Full Width'}
 											onClick={() => {
 												const newLayout = !isFullWidthLayout
-												setIsFullWidthLayout(newLayout)
-												const formData = new FormData()
-												formData.append(
-													'layout',
-													newLayout ? 'full-width' : 'split',
-												)
-												void layoutFetcher.submit(formData, {
-													method: 'POST',
-													action: '/resources/layout-switch',
-												})
+												// Only submit if layout fetcher is not already busy
+												if (layoutFetcher.state === 'idle') {
+													setIsFullWidthLayout(newLayout)
+													const formData = new FormData()
+													formData.append(
+														'layout',
+														newLayout ? 'full-width' : 'split',
+													)
+													void layoutFetcher.submit(formData, {
+														method: 'POST',
+														action: '/resources/layout-switch',
+													})
+												}
 											}}
 										>
 											<Icon
@@ -1744,10 +1886,15 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 									scale={loaderData.scale}
 									isScaleCalibrationModeExternal={isScaleCalibrationMode}
 									onScaleCalibrationModeChange={setIsScaleCalibrationMode}
+									axis={loaderData.axis}
+									isAxisConfigurationModeExternal={isAxisConfigurationMode}
+									onAxisConfigurationModeChange={setIsAxisConfigurationMode}
+									onAxisChange={handleAxisChange}
 									onCurrentTimeChange={setCurrentVideoTime}
 									onSeekToFrameRef={(seekFn) => {
 										seekToFrameRef.current = seekFn
 									}}
+									activeTool={activeTool}
 								/>
 
 								{/* Tools Bar - Step-based design */}
@@ -1758,29 +1905,40 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 												Tools
 											</span>
 											<div className="h-6 w-px bg-slate-200" />
-											<Button
-												type="button"
-												variant={isScaleCalibrationMode ? 'default' : 'outline'}
-												size="default"
+											<ToggleGroup
+												type="single"
+												value={activeTool}
+												onValueChange={handleToolChange}
 												className="gap-2"
-												title="Set Scale"
-												onClick={() =>
-													setIsScaleCalibrationMode(!isScaleCalibrationMode)
-												}
 											>
-												<Icon name="file" className="h-4 w-4" />
-												Set Scale
-											</Button>
-											<Button
-												type="button"
-												variant="outline"
-												size="default"
-												className="gap-2"
-												title="Track Object"
-											>
-												<Icon name="crosshair-2" className="h-4 w-4" />
-												Track Object
-											</Button>
+												<ToggleGroupItem
+													value="scale"
+													aria-label="Set Scale"
+													className="gap-2"
+												>
+													<Icon
+														name="ruler-dimension-line"
+														className="h-4 w-4"
+													/>
+													Set Scale
+												</ToggleGroupItem>
+												<ToggleGroupItem
+													value="origin"
+													aria-label="Set Origin"
+													className="gap-2"
+												>
+													<Icon name="move-3d" className="h-4 w-4" />
+													Set Origin
+												</ToggleGroupItem>
+												<ToggleGroupItem
+													value="track"
+													aria-label="Track Object"
+													className="gap-2"
+												>
+													<Icon name="crosshair-2" className="h-4 w-4" />
+													Track Object
+												</ToggleGroupItem>
+											</ToggleGroup>
 											<div className="h-6 w-px bg-slate-200" />
 											<Button
 												type="button"

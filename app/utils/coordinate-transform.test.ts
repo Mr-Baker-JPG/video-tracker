@@ -91,7 +91,11 @@ describe('coordinate-transform', () => {
 			}
 
 			const original = { x: 100, y: 50 }
-			const axisCoords = transformToAxisCoordinates(original.x, original.y, axis)
+			const axisCoords = transformToAxisCoordinates(
+				original.x,
+				original.y,
+				axis,
+			)
 			const videoCoords = transformFromAxisCoordinates(
 				axisCoords.x,
 				axisCoords.y,
@@ -110,7 +114,11 @@ describe('coordinate-transform', () => {
 			}
 
 			const original = { x: 150, y: 125 }
-			const axisCoords = transformToAxisCoordinates(original.x, original.y, axis)
+			const axisCoords = transformToAxisCoordinates(
+				original.x,
+				original.y,
+				axis,
+			)
 			const videoCoords = transformFromAxisCoordinates(
 				axisCoords.x,
 				axisCoords.y,

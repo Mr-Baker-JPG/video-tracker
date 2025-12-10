@@ -1,4 +1,10 @@
-import { useState, useMemo, useRef, type ReactElement } from 'react'
+import {
+	useState,
+	useMemo,
+	useRef,
+	useLayoutEffect,
+	type ReactElement,
+} from 'react'
 import {
 	LineChart,
 	Line,
@@ -46,6 +52,7 @@ interface VelocityVsTimeGraphProps {
 }
 
 const FPS = 30 // Frames per second for time calculation
+const MIN_CHART_DIMENSION = 32
 
 type AxisType = 'x' | 'y'
 
@@ -84,7 +91,11 @@ function calculateVelocity(
 		let x = point.x
 		let y = point.y
 		if (axisConfig) {
-			const transformed = transformToAxisCoordinates(point.x, point.y, axisConfig)
+			const transformed = transformToAxisCoordinates(
+				point.x,
+				point.y,
+				axisConfig,
+			)
 			x = transformed.x
 			y = transformed.y
 		}
@@ -103,7 +114,11 @@ function calculateVelocity(
 			let nextX = nextPoint.x
 			let nextY = nextPoint.y
 			if (axisConfig) {
-				const transformed = transformToAxisCoordinates(nextPoint.x, nextPoint.y, axisConfig)
+				const transformed = transformToAxisCoordinates(
+					nextPoint.x,
+					nextPoint.y,
+					axisConfig,
+				)
 				nextX = transformed.x
 				nextY = transformed.y
 			}
@@ -121,7 +136,11 @@ function calculateVelocity(
 			let prevX = prevPoint.x
 			let prevY = prevPoint.y
 			if (axisConfig) {
-				const transformed = transformToAxisCoordinates(prevPoint.x, prevPoint.y, axisConfig)
+				const transformed = transformToAxisCoordinates(
+					prevPoint.x,
+					prevPoint.y,
+					axisConfig,
+				)
 				prevX = transformed.x
 				prevY = transformed.y
 			}
@@ -139,7 +158,11 @@ function calculateVelocity(
 			let nextX = nextPoint.x
 			let nextY = nextPoint.y
 			if (axisConfig) {
-				const transformed = transformToAxisCoordinates(nextPoint.x, nextPoint.y, axisConfig)
+				const transformed = transformToAxisCoordinates(
+					nextPoint.x,
+					nextPoint.y,
+					axisConfig,
+				)
 				nextX = transformed.x
 				nextY = transformed.y
 			}
@@ -167,6 +190,44 @@ export function VelocityVsTimeGraph({
 }: VelocityVsTimeGraphProps) {
 	const graphContainerRef = useRef<HTMLDivElement>(null)
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
+	const [isReady, setIsReady] = useState(false)
+
+	// Check if container has valid dimensions before rendering chart
+	useLayoutEffect(() => {
+		const el = graphContainerRef.current
+		if (!el) return
+
+		const update = (rect = el.getBoundingClientRect()) => {
+			if (
+				rect.width >= MIN_CHART_DIMENSION &&
+				rect.height >= MIN_CHART_DIMENSION
+			) {
+				setIsReady(true)
+			} else {
+				setIsReady(false)
+			}
+		}
+
+		// Initial check
+		update()
+
+		// Use ResizeObserver if available
+		if (typeof ResizeObserver === 'undefined') return
+
+		const observer = new ResizeObserver(() => {
+			// Always use getBoundingClientRect() to get actual rendered dimensions
+			// Use requestAnimationFrame to check after paint completes
+			requestAnimationFrame(() => {
+				update()
+			})
+		})
+
+		observer.observe(el)
+
+		return () => {
+			observer.disconnect()
+		}
+	}, [])
 
 	// Helper to get tracking object name
 	const getTrackingObjectName = (id: string): string => {
@@ -438,6 +499,15 @@ export function VelocityVsTimeGraph({
 		}
 	}
 
+	// Compute if dimensions are actually valid at render time (final safety check)
+	const canRenderChart = useMemo(() => {
+		if (!isReady || !graphContainerRef.current) return false
+		const rect = graphContainerRef.current.getBoundingClientRect()
+		return (
+			rect.width >= MIN_CHART_DIMENSION && rect.height >= MIN_CHART_DIMENSION
+		)
+	}, [isReady])
+
 	if (trackingPoints.length === 0) {
 		return (
 			<div className="border-border bg-card text-muted-foreground rounded-lg border p-8 text-center">
@@ -472,67 +542,75 @@ export function VelocityVsTimeGraph({
 					Export PNG
 				</Button>
 			</div>
-			<div ref={graphContainerRef} className="h-96 w-full">
-				<ResponsiveContainer width="100%" height="100%">
-					<LineChart data={chartData}>
-						<CartesianGrid strokeDasharray="3 3" />
-						<XAxis
-							dataKey="time"
-							domain={timeDomain}
-							ticks={timeTicks}
-							type="number"
-							allowDecimals={true}
-							interval={0}
-							allowDataOverflow={false}
-							tickFormatter={(value) => {
-								// Format time ticks to show reasonable precision
-								if (value < 0.01) return value.toFixed(3)
-								if (value < 1) return value.toFixed(2)
-								return value.toFixed(1)
-							}}
-							label={{
-								value: 'Time (seconds)',
-								position: 'insideBottom',
-								offset: -5,
-							}}
-						/>
-						<YAxis
-							domain={velocityDomain}
-							ticks={velocityTicks}
-							type="number"
-							allowDecimals={true}
-							interval={0}
-							allowDataOverflow={false}
-							tickFormatter={(value) => {
-								// Format velocity ticks based on scale
-								if (scale) {
-									// For m/s, show 1-2 decimal places
-									return value < 1 ? value.toFixed(2) : value.toFixed(1)
-								}
-								// For pixels/s, show whole numbers or 1 decimal
-								return value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)
-							}}
-							label={{
-								value: yAxisLabel,
-								angle: -90,
-								position: 'insideLeft',
-							}}
-						/>
-						<Tooltip
-							formatter={(value: number) => {
-								return [
-									typeof value === 'number'
-										? value.toFixed(scale ? 3 : 1)
-										: value,
-									scale ? 'm/s' : 'pixels/s',
-								]
-							}}
-							labelFormatter={(time) => `Time: ${time.toFixed(3)}s`}
-						/>
-						<Legend />
-						{lines}
-					</LineChart>
-				</ResponsiveContainer>
+			<div
+				ref={graphContainerRef}
+				data-chart-ready={isReady ? 'true' : 'false'}
+				className={`h-96 min-h-[384px] w-full min-w-0 ${
+					!isReady ? 'pointer-events-none opacity-0' : ''
+				}`}
+			>
+				{canRenderChart && (
+					<ResponsiveContainer width="100%" height="100%">
+						<LineChart data={chartData}>
+							<CartesianGrid strokeDasharray="3 3" />
+							<XAxis
+								dataKey="time"
+								domain={timeDomain}
+								ticks={timeTicks}
+								type="number"
+								allowDecimals={true}
+								interval={0}
+								allowDataOverflow={false}
+								tickFormatter={(value) => {
+									// Format time ticks to show reasonable precision
+									if (value < 0.01) return value.toFixed(3)
+									if (value < 1) return value.toFixed(2)
+									return value.toFixed(1)
+								}}
+								label={{
+									value: 'Time (seconds)',
+									position: 'insideBottom',
+									offset: -5,
+								}}
+							/>
+							<YAxis
+								domain={velocityDomain}
+								ticks={velocityTicks}
+								type="number"
+								allowDecimals={true}
+								interval={0}
+								allowDataOverflow={false}
+								tickFormatter={(value) => {
+									// Format velocity ticks based on scale
+									if (scale) {
+										// For m/s, show 1-2 decimal places
+										return value < 1 ? value.toFixed(2) : value.toFixed(1)
+									}
+									// For pixels/s, show whole numbers or 1 decimal
+									return value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)
+								}}
+								label={{
+									value: yAxisLabel,
+									angle: -90,
+									position: 'insideLeft',
+								}}
+							/>
+							<Tooltip
+								formatter={(value: number) => {
+									return [
+										typeof value === 'number'
+											? value.toFixed(scale ? 3 : 1)
+											: value,
+										scale ? 'm/s' : 'pixels/s',
+									]
+								}}
+								labelFormatter={(time) => `Time: ${time.toFixed(3)}s`}
+							/>
+							<Legend />
+							{lines}
+						</LineChart>
+					</ResponsiveContainer>
+				)}
 			</div>
 		</div>
 	)

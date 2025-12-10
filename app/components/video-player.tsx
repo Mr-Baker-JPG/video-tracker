@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import { useFetcher } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
+import { VideoAxis, type Axis } from '#app/components/video-axis.tsx'
 
 interface TrackingPoint {
 	id: string
@@ -27,13 +28,6 @@ interface Scale {
 	pixelsPerMeter: number
 }
 
-interface Axis {
-	id: string
-	originX: number
-	originY: number
-	rotationAngle: number // In radians
-}
-
 interface VideoPlayerProps {
 	src: string
 	className?: string
@@ -48,8 +42,10 @@ interface VideoPlayerProps {
 	axis?: Axis | null
 	onAxisConfigurationModeChange?: (isActive: boolean) => void
 	isAxisConfigurationModeExternal?: boolean
+	onAxisChange?: (axis: Axis | null) => void
 	onCurrentTimeChange?: (currentTime: number) => void
 	onSeekToFrameRef?: (seekFn: (frame: number) => void) => void
+	activeTool?: 'scale' | 'origin' | 'track' | undefined
 }
 
 function formatTime(seconds: number): string {
@@ -93,11 +89,13 @@ export function VideoPlayer({
 	scale: initialScale = null,
 	onScaleCalibrationModeChange,
 	isScaleCalibrationModeExternal = false,
-	axis: initialAxis = null,
+	axis: initialAxis,
 	onAxisConfigurationModeChange,
 	isAxisConfigurationModeExternal = false,
+	onAxisChange,
 	onCurrentTimeChange,
 	onSeekToFrameRef,
+	activeTool,
 }: VideoPlayerProps) {
 	const videoRef = useRef<HTMLVideoElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -197,43 +195,175 @@ export function VideoPlayer({
 	const [scale, setScale] = useState<Scale | null>(initialScale)
 	const [frameInput, setFrameInput] = useState<string>('')
 
-	// Axis configuration state
-	const [isAxisConfigurationMode, setIsAxisConfigurationMode] = useState(false)
+	// Convert canvas coordinates to video coordinates
+	const convertCanvasToVideoCoords = useCallback(
+		(canvasX: number, canvasY: number) => {
+			const canvas = canvasRef.current
+			const video = videoRef.current
+			if (!canvas || !video) return null
 
-	// Sync external axis configuration mode
-	useEffect(() => {
-		if (isAxisConfigurationModeExternal !== undefined) {
-			setIsAxisConfigurationMode(isAxisConfigurationModeExternal)
-		}
-	}, [isAxisConfigurationModeExternal])
+			const videoAspect = video.videoWidth / video.videoHeight
+			const canvasAspect = canvas.width / canvas.height
 
-	// Notify parent of axis configuration mode changes
-	useEffect(() => {
-		onAxisConfigurationModeChange?.(isAxisConfigurationMode)
-	}, [isAxisConfigurationMode, onAxisConfigurationModeChange])
+			let x: number
+			let y: number
 
-	const [axis, setAxis] = useState<Axis | null>(initialAxis)
-	const [axisOrigin, setAxisOrigin] = useState<{ x: number; y: number } | null>(
-		initialAxis ? { x: initialAxis.originX, y: initialAxis.originY } : null,
+			if (videoAspect > canvasAspect) {
+				// Video is wider - letterboxing on top/bottom
+				const scale = canvas.width / video.videoWidth
+				const scaledHeight = video.videoHeight * scale
+				const offsetY = (canvas.height - scaledHeight) / 2
+				x = canvasX / scale
+				y = (canvasY - offsetY) / scale
+			} else {
+				// Video is taller - letterboxing on left/right
+				const scale = canvas.height / video.videoHeight
+				const scaledWidth = video.videoWidth * scale
+				const offsetX = (canvas.width - scaledWidth) / 2
+				x = (canvasX - offsetX) / scale
+				y = canvasY / scale
+			}
+
+			// Ensure coordinates are within video bounds
+			x = Math.max(0, Math.min(x, video.videoWidth))
+			y = Math.max(0, Math.min(y, video.videoHeight))
+
+			return { x, y }
+		},
+		[],
 	)
-	const [axisRotation, setAxisRotation] = useState<number>(
-		initialAxis?.rotationAngle || 0,
+
+	const goToNextFrame = useCallback(() => {
+		const video = videoRef.current
+		if (!video) return
+		const fps = 30
+		const frameTime = 1 / fps
+		const newTime = Math.min(video.duration, video.currentTime + frameTime)
+		video.currentTime = newTime
+		setCurrentTime(newTime)
+		setIsPlaying(false)
+		video.pause()
+	}, [])
+
+	// Handle tracking point placement
+	const handleTrackingPointClick = useCallback(
+		(e: React.MouseEvent<HTMLCanvasElement>) => {
+			// Only allow tracking when the track tool is active
+			if (activeTool !== 'track') return
+
+			if (!videoId || !canvasRef.current || !videoRef.current) return
+
+			const canvas = canvasRef.current
+			const rect = canvas.getBoundingClientRect()
+
+			// Get click position relative to canvas
+			const canvasX = e.clientX - rect.left
+			const canvasY = e.clientY - rect.top
+
+			const coords = convertCanvasToVideoCoords(canvasX, canvasY)
+			if (!coords) return
+			const { x, y } = coords
+
+			// Calculate current frame (assuming 30 fps)
+			const fps = 30
+			const frame = Math.floor(currentTime * fps)
+
+			// Check if there's an existing point nearby (within 50 pixels) in a previous frame
+			// to continue tracking the same object
+			let trackingObjectIdToUse: string | null = null
+			if (activeTrackingObjectId) {
+				// Use the active tracking object
+				trackingObjectIdToUse = activeTrackingObjectId
+			} else {
+				// Try to find a nearby point from a previous frame to continue tracking
+				const nearbyPoint = localTrackingPoints.find((point) => {
+					const distance = Math.sqrt(
+						Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2),
+					)
+					return distance < 50 && point.frame < frame
+				})
+				if (nearbyPoint) {
+					trackingObjectIdToUse = nearbyPoint.trackingObjectId
+					setActiveTrackingObjectId(nearbyPoint.trackingObjectId)
+				}
+			}
+
+			// Create tracking point locally for immediate feedback
+			const tempTrackingObjectId = trackingObjectIdToUse || `temp-${Date.now()}`
+			const newPoint: TrackingPoint = {
+				id: `temp-${Date.now()}`,
+				frame,
+				x,
+				y,
+				trackingObjectId: tempTrackingObjectId,
+			}
+
+			// Update local state: replace existing point for this object at this frame, or add new one
+			setLocalTrackingPoints((prev) => {
+				const filtered = prev.filter(
+					(p) =>
+						!(p.trackingObjectId === tempTrackingObjectId && p.frame === frame),
+				)
+				return [...filtered, newPoint]
+			})
+
+			// Save to server
+			const formData = new FormData()
+			formData.append('intent', 'create-tracking-point')
+			formData.append('videoId', videoId)
+			formData.append('frame', frame.toString())
+			formData.append('x', x.toString())
+			formData.append('y', y.toString())
+			if (trackingObjectIdToUse) {
+				formData.append('trackingObjectId', trackingObjectIdToUse)
+			}
+
+			if (videoId && fetcher) {
+				void fetcher.submit(formData, {
+					method: 'POST',
+				})
+			}
+
+			// Auto-advance to next frame after placing point
+			goToNextFrame()
+		},
+		[
+			activeTool,
+			videoId,
+			currentTime,
+			fetcher,
+			activeTrackingObjectId,
+			localTrackingPoints,
+			goToNextFrame,
+			convertCanvasToVideoCoords,
+			setActiveTrackingObjectId,
+		],
 	)
-	const [showAxis, setShowAxis] = useState<boolean>(!!initialAxis)
-	const [isDraggingAxis, setIsDraggingAxis] = useState<
-		'origin' | 'rotation' | null
-	>(null)
-	const [dragStartPos, setDragStartPos] = useState<{
-		x: number
-		y: number
-	} | null>(null)
-	const [dragStartOrigin, setDragStartOrigin] = useState<{
-		x: number
-		y: number
-	} | null>(null)
-	const [dragStartRotation, setDragStartRotation] = useState<number | null>(
-		null,
-	)
+
+	// Use VideoAxis hook for axis management
+	const axisHook = VideoAxis({
+		axis: initialAxis || null,
+		onAxisChange,
+		isAxisConfigurationModeExternal,
+		onAxisConfigurationModeChange,
+		canvasRef,
+		videoRef,
+		convertCanvasToVideoCoords,
+		onCanvasClick: handleTrackingPointClick,
+	})
+
+	const {
+		showAxis,
+		setShowAxis,
+		isHoveringRotationHandle,
+		isDraggingAxis,
+		isAxisConfigurationMode,
+		handleAxisClick,
+		handleAxisMouseDown,
+		handleAxisMouseMove,
+		handleAxisMouseUp,
+		drawAxis,
+	} = axisHook
 
 	const handlePlayPause = useCallback(() => {
 		const video = videoRef.current
@@ -404,18 +534,6 @@ export function VideoPlayer({
 		video.pause()
 	}, [])
 
-	const goToNextFrame = useCallback(() => {
-		const video = videoRef.current
-		if (!video) return
-		const fps = 30
-		const frameTime = 1 / fps
-		const newTime = Math.min(video.duration, video.currentTime + frameTime)
-		video.currentTime = newTime
-		setCurrentTime(newTime)
-		setIsPlaying(false)
-		video.pause()
-	}, [])
-
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	const goToFirstFrame = useCallback(() => {
 		const video = videoRef.current
@@ -574,59 +692,6 @@ export function VideoPlayer({
 		}
 	}, [trackingPoints])
 
-	// Sync axis state when initialAxis prop changes
-	useEffect(() => {
-		if (initialAxis) {
-			setAxis(initialAxis)
-			setAxisOrigin({ x: initialAxis.originX, y: initialAxis.originY })
-			setAxisRotation(initialAxis.rotationAngle)
-			setShowAxis(true)
-		} else {
-			setAxis(null)
-			setAxisOrigin(null)
-			setAxisRotation(0)
-			setShowAxis(false)
-		}
-	}, [initialAxis])
-
-	// Convert canvas coordinates to video coordinates
-	const convertCanvasToVideoCoords = useCallback(
-		(canvasX: number, canvasY: number) => {
-			const canvas = canvasRef.current
-			const video = videoRef.current
-			if (!canvas || !video) return null
-
-			const videoAspect = video.videoWidth / video.videoHeight
-			const canvasAspect = canvas.width / canvas.height
-
-			let x: number
-			let y: number
-
-			if (videoAspect > canvasAspect) {
-				// Video is wider - letterboxing on top/bottom
-				const scale = canvas.width / video.videoWidth
-				const scaledHeight = video.videoHeight * scale
-				const offsetY = (canvas.height - scaledHeight) / 2
-				x = canvasX / scale
-				y = (canvasY - offsetY) / scale
-			} else {
-				// Video is taller - letterboxing on left/right
-				const scale = canvas.height / video.videoHeight
-				const scaledWidth = video.videoWidth * scale
-				const offsetX = (canvas.width - scaledWidth) / 2
-				x = (canvasX - offsetX) / scale
-				y = canvasY / scale
-			}
-
-			// Ensure coordinates are within video bounds
-			x = Math.max(0, Math.min(x, video.videoWidth))
-			y = Math.max(0, Math.min(y, video.videoHeight))
-
-			return { x, y }
-		},
-		[],
-	)
-
 	// Handle canvas click to place tracking point or draw scale line
 	const handleCanvasClick = useCallback(
 		(e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -656,251 +721,39 @@ export function VideoPlayer({
 				return
 			}
 
-			// Handle axis configuration mode
-			if (isAxisConfigurationMode) {
-				const canvas = canvasRef.current
-				const rect = canvas.getBoundingClientRect()
-				const canvasX = e.clientX - rect.left
-				const canvasY = e.clientY - rect.top
-
-				const coords = convertCanvasToVideoCoords(canvasX, canvasY)
-				if (!coords) return
-
-				// Check if clicking on origin (within 10 pixels)
-				if (axisOrigin) {
-					const video = videoRef.current
-					if (!video) return
-
-					// Calculate canvas scale and offset
-					const videoAspect = video.videoWidth / video.videoHeight
-					const canvasAspect = canvas.width / canvas.height
-					let canvasScale: number
-					let offsetX = 0
-					let offsetY = 0
-
-					if (videoAspect > canvasAspect) {
-						canvasScale = canvas.width / video.videoWidth
-						const scaledHeight = video.videoHeight * canvasScale
-						offsetY = (canvas.height - scaledHeight) / 2
-					} else {
-						canvasScale = canvas.height / video.videoHeight
-						const scaledWidth = video.videoWidth * canvasScale
-						offsetX = (canvas.width - scaledWidth) / 2
-					}
-
-					const originCanvasX = axisOrigin.x * canvasScale + offsetX
-					const originCanvasY = axisOrigin.y * canvasScale + offsetY
-					const distToOrigin = Math.sqrt(
-						Math.pow(canvasX - originCanvasX, 2) +
-							Math.pow(canvasY - originCanvasY, 2),
-					)
-
-					if (distToOrigin < 10) {
-						// Start dragging origin
-						setIsDraggingAxis('origin')
-						setDragStartPos({ x: canvasX, y: canvasY })
-						setDragStartOrigin({ x: axisOrigin.x, y: axisOrigin.y })
-						return
-					}
-
-					// Check if clicking on rotation handle (x-axis endpoint)
-					const axisLength = 50 // Length of axis line in video pixels
-					const handleX = axisOrigin.x + axisLength * Math.cos(axisRotation)
-					const handleY = axisOrigin.y + axisLength * Math.sin(axisRotation)
-					const handleCanvasX = handleX * canvasScale + offsetX
-					const handleCanvasY = handleY * canvasScale + offsetY
-					const distToHandle = Math.sqrt(
-						Math.pow(canvasX - handleCanvasX, 2) +
-							Math.pow(canvasY - handleCanvasY, 2),
-					)
-
-					if (distToHandle < 10) {
-						// Start dragging rotation handle
-						setIsDraggingAxis('rotation')
-						setDragStartPos({ x: canvasX, y: canvasY })
-						setDragStartRotation(axisRotation)
-						return
-					}
-				}
-
-				// If no axis origin exists, place it
-				if (!axisOrigin) {
-					setAxisOrigin(coords)
-					setAxisRotation(0) // Default rotation (x-axis pointing right)
-				}
-				return
-			}
-
-			// Handle tracking point placement (existing logic)
-			const canvas = canvasRef.current
-			if (!canvas) return
-
-			const rect = canvas.getBoundingClientRect()
-
-			// Get click position relative to canvas
-			const canvasX = e.clientX - rect.left
-			const canvasY = e.clientY - rect.top
-
-			const coords = convertCanvasToVideoCoords(canvasX, canvasY)
-			if (!coords) return
-			const { x, y } = coords
-
-			// Calculate current frame (assuming 30 fps)
-			const fps = 30
-			const frame = Math.floor(currentTime * fps)
-
-			// Check if there's an existing point nearby (within 50 pixels) in a previous frame
-			// to continue tracking the same object
-			let trackingObjectIdToUse: string | null = null
-			if (activeTrackingObjectId) {
-				// Use the active tracking object
-				trackingObjectIdToUse = activeTrackingObjectId
-			} else {
-				// Try to find a nearby point from a previous frame to continue tracking
-				const nearbyPoint = localTrackingPoints.find((point) => {
-					const distance = Math.sqrt(
-						Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2),
-					)
-					return distance < 50 && point.frame < frame
-				})
-				if (nearbyPoint) {
-					trackingObjectIdToUse = nearbyPoint.trackingObjectId
-					setActiveTrackingObjectId(nearbyPoint.trackingObjectId)
-				}
-			}
-
-			// Create tracking point locally for immediate feedback
-			const tempTrackingObjectId = trackingObjectIdToUse || `temp-${Date.now()}`
-			const newPoint: TrackingPoint = {
-				id: `temp-${Date.now()}`,
-				frame,
-				x,
-				y,
-				trackingObjectId: tempTrackingObjectId,
-			}
-
-			// Update local state: replace existing point for this object at this frame, or add new one
-			setLocalTrackingPoints((prev) => {
-				const filtered = prev.filter(
-					(p) =>
-						!(p.trackingObjectId === tempTrackingObjectId && p.frame === frame),
-				)
-				return [...filtered, newPoint]
-			})
-
-			// Save to server
-			const formData = new FormData()
-			formData.append('intent', 'create-tracking-point')
-			formData.append('videoId', videoId)
-			formData.append('frame', frame.toString())
-			formData.append('x', x.toString())
-			formData.append('y', y.toString())
-			if (trackingObjectIdToUse) {
-				formData.append('trackingObjectId', trackingObjectIdToUse)
-			}
-
-			if (videoId && fetcher) {
-				void fetcher.submit(formData, {
-					method: 'POST',
-				})
-			}
-
-			// Auto-advance to next frame after placing point
-			goToNextFrame()
+			// Let axis handler process the click (it will call handleTrackingPointClick if not in axis mode)
+			handleAxisClick(e)
 		},
 		[
 			videoId,
-			currentTime,
-			fetcher,
-			activeTrackingObjectId,
-			localTrackingPoints,
 			isScaleCalibrationMode,
-			isAxisConfigurationMode,
-			axisOrigin,
-			axisRotation,
-			goToNextFrame,
 			convertCanvasToVideoCoords,
 			scaleStartPoint,
 			scaleEndPoint,
-			setActiveTrackingObjectId,
+			handleAxisClick,
 		],
 	)
 
-	// Handle mouse move for axis dragging
+	// Handle mouse down - delegate to axis handler
+	const handleCanvasMouseDown = useCallback(
+		(e: React.MouseEvent<HTMLCanvasElement>) => {
+			handleAxisMouseDown(e)
+		},
+		[handleAxisMouseDown],
+	)
+
+	// Handle mouse move - delegate to axis handler
 	const handleCanvasMouseMove = useCallback(
 		(e: React.MouseEvent<HTMLCanvasElement>) => {
-			if (
-				!isDraggingAxis ||
-				!dragStartPos ||
-				!canvasRef.current ||
-				!videoRef.current
-			)
-				return
-
-			const canvas = canvasRef.current
-			const video = videoRef.current
-			const rect = canvas.getBoundingClientRect()
-			const canvasX = e.clientX - rect.left
-			const canvasY = e.clientY - rect.top
-
-			if (isDraggingAxis === 'origin' && dragStartOrigin) {
-				// Drag origin
-				const coords = convertCanvasToVideoCoords(canvasX, canvasY)
-				if (coords) {
-					setAxisOrigin(coords)
-				}
-			} else if (isDraggingAxis === 'rotation' && dragStartRotation !== null) {
-				// Drag rotation handle
-				if (!axisOrigin) return
-
-				// Calculate canvas scale and offset
-				const videoAspect = video.videoWidth / video.videoHeight
-				const canvasAspect = canvas.width / canvas.height
-				let canvasScale: number
-				let offsetX = 0
-				let offsetY = 0
-
-				if (videoAspect > canvasAspect) {
-					canvasScale = canvas.width / video.videoWidth
-					const scaledHeight = video.videoHeight * canvasScale
-					offsetY = (canvas.height - scaledHeight) / 2
-				} else {
-					canvasScale = canvas.height / video.videoHeight
-					const scaledWidth = video.videoWidth * canvasScale
-					offsetX = (canvas.width - scaledWidth) / 2
-				}
-
-				const originCanvasX = axisOrigin.x * canvasScale + offsetX
-				const originCanvasY = axisOrigin.y * canvasScale + offsetY
-
-				// Calculate angle from origin to current mouse position
-				const dx = canvasX - originCanvasX
-				const dy = canvasY - originCanvasY
-				// Convert canvas coordinates to video coordinates for angle calculation
-				const videoDx = dx / canvasScale
-				const videoDy = dy / canvasScale
-				const newAngle = Math.atan2(videoDy, videoDx)
-
-				setAxisRotation(newAngle)
-			}
+			handleAxisMouseMove(e)
 		},
-		[
-			isDraggingAxis,
-			dragStartPos,
-			dragStartOrigin,
-			dragStartRotation,
-			axisOrigin,
-			convertCanvasToVideoCoords,
-		],
+		[handleAxisMouseMove],
 	)
 
-	// Handle mouse up to stop dragging
+	// Handle mouse up - delegate to axis handler
 	const handleCanvasMouseUp = useCallback(() => {
-		setIsDraggingAxis(null)
-		setDragStartPos(null)
-		setDragStartOrigin(null)
-		setDragStartRotation(null)
-	}, [])
+		handleAxisMouseUp()
+	}, [handleAxisMouseUp])
 
 	// Handle saving scale calibration
 	const handleSaveScale = useCallback(() => {
@@ -941,57 +794,24 @@ export function VideoPlayer({
 	}, [])
 
 	// Handle saving axis configuration
+	// Auto-save axis when it changes (debounced to avoid too many saves)
+	const axisSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const handleSaveAxis = useCallback(() => {
-		if (!videoId || !axisOrigin) return
+		if (!videoId || !axisHook.axis) return
 
 		const formData = new FormData()
 		formData.append('intent', 'save-axis')
 		formData.append('videoId', videoId)
-		formData.append('originX', axisOrigin.x.toString())
-		formData.append('originY', axisOrigin.y.toString())
-		formData.append('rotationAngle', axisRotation.toString())
+		formData.append('originX', axisHook.axis.originX.toString())
+		formData.append('originY', axisHook.axis.originY.toString())
+		formData.append('rotationAngle', axisHook.axis.rotationAngle.toString())
 
 		if (fetcher) {
 			void fetcher.submit(formData, {
 				method: 'POST',
 			})
-			// Exit axis configuration mode
-			setIsAxisConfigurationMode(false)
 		}
-	}, [videoId, axisOrigin, axisRotation, fetcher])
-
-	// Reset axis configuration mode (may be used in future UI)
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	const handleCancelAxis = useCallback(() => {
-		// Reset to initial axis if it exists, otherwise clear
-		if (initialAxis) {
-			setAxisOrigin({ x: initialAxis.originX, y: initialAxis.originY })
-			setAxisRotation(initialAxis.rotationAngle)
-		} else {
-			setAxisOrigin(null)
-			setAxisRotation(0)
-		}
-		setIsAxisConfigurationMode(false)
-		setIsDraggingAxis(null)
-	}, [initialAxis])
-
-	// Auto-save axis when exiting configuration mode if axis origin is set
-	const prevAxisConfigModeRef = useRef(isAxisConfigurationMode)
-	useEffect(() => {
-		// Only save when transitioning from configuration mode to non-configuration mode
-		if (
-			prevAxisConfigModeRef.current &&
-			!isAxisConfigurationMode &&
-			axisOrigin &&
-			videoId &&
-			fetcher
-		) {
-			// Save axis configuration
-			handleSaveAxis()
-		}
-		prevAxisConfigModeRef.current = isAxisConfigurationMode
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isAxisConfigurationMode, axisOrigin, videoId])
+	}, [videoId, axisHook.axis, fetcher])
 
 	// Update scale when fetcher returns new data
 	useEffect(() => {
@@ -1008,13 +828,10 @@ export function VideoPlayer({
 				setIsScaleCalibrationMode(false)
 			}
 			// Handle axis save response
+			// Note: Axis state is now managed by VideoAxis hook, which syncs with initialAxis prop
+			// The parent component should update the axis prop when fetcher returns new data
 			if (fetcher.data?.axis) {
-				const newAxis = fetcher.data.axis as Axis
-				setAxis(newAxis)
-				setAxisOrigin({ x: newAxis.originX, y: newAxis.originY })
-				setAxisRotation(newAxis.rotationAngle)
-				// Exit axis configuration mode - will sync with external state
-				setIsAxisConfigurationMode(false)
+				// Axis state is managed by VideoAxis hook - no local state updates needed
 			}
 		}
 	}, [fetcher?.data, onScaleCalibrationModeChange])
@@ -1122,58 +939,8 @@ export function VideoPlayer({
 				}
 			}
 
-			// Draw axis if it exists and is visible
-			if (showAxis && axisOrigin) {
-				const axisLength = 50 // Length of axis line in video pixels
-				const originCanvasX = axisOrigin.x * canvasScale + offsetX
-				const originCanvasY = axisOrigin.y * canvasScale + offsetY
-
-				// Draw x-axis (red)
-				const xAxisEndX = axisOrigin.x + axisLength * Math.cos(axisRotation)
-				const xAxisEndY = axisOrigin.y + axisLength * Math.sin(axisRotation)
-				const xAxisEndCanvasX = xAxisEndX * canvasScale + offsetX
-				const xAxisEndCanvasY = xAxisEndY * canvasScale + offsetY
-
-				ctx.strokeStyle = '#ff0000'
-				ctx.lineWidth = 2
-				ctx.beginPath()
-				ctx.moveTo(originCanvasX, originCanvasY)
-				ctx.lineTo(xAxisEndCanvasX, xAxisEndCanvasY)
-				ctx.stroke()
-
-				// Draw y-axis (blue) - perpendicular to x-axis
-				const yAxisEndX = axisOrigin.x + axisLength * Math.cos(axisRotation + Math.PI / 2)
-				const yAxisEndY = axisOrigin.y + axisLength * Math.sin(axisRotation + Math.PI / 2)
-				const yAxisEndCanvasX = yAxisEndX * canvasScale + offsetX
-				const yAxisEndCanvasY = yAxisEndY * canvasScale + offsetY
-
-				ctx.strokeStyle = '#0000ff'
-				ctx.lineWidth = 2
-				ctx.beginPath()
-				ctx.moveTo(originCanvasX, originCanvasY)
-				ctx.lineTo(yAxisEndCanvasX, yAxisEndCanvasY)
-				ctx.stroke()
-
-				// Draw origin point (white circle)
-				ctx.fillStyle = '#ffffff'
-				ctx.strokeStyle = '#000000'
-				ctx.lineWidth = 2
-				ctx.beginPath()
-				ctx.arc(originCanvasX, originCanvasY, 5, 0, 2 * Math.PI)
-				ctx.fill()
-				ctx.stroke()
-
-				// Draw rotation handle (x-axis endpoint) - only in configuration mode
-				if (isAxisConfigurationMode) {
-					ctx.fillStyle = '#ffff00'
-					ctx.strokeStyle = '#000000'
-					ctx.lineWidth = 2
-					ctx.beginPath()
-					ctx.arc(xAxisEndCanvasX, xAxisEndCanvasY, 6, 0, 2 * Math.PI)
-					ctx.fill()
-					ctx.stroke()
-				}
-			}
+			// Draw axis using the axis component
+			drawAxis(ctx, canvasScale, offsetX, offsetY)
 
 			// Draw points for the active tracking object across all frames
 			// If no active object, show all points for the current frame
@@ -1295,10 +1062,7 @@ export function VideoPlayer({
 		scaleEndPoint,
 		showTrajectoryPaths,
 		getTrackingObjectColor,
-		showAxis,
-		axisOrigin,
-		axisRotation,
-		isAxisConfigurationMode,
+		drawAxis,
 	])
 
 	// Sync local tracking objects when prop changes
@@ -1367,11 +1131,18 @@ export function VideoPlayer({
 				{videoId && (
 					<canvas
 						ref={canvasRef}
-						className="absolute top-0 left-0 cursor-crosshair"
+						className={`absolute top-0 left-0 ${
+							isHoveringRotationHandle || isDraggingAxis === 'rotation'
+								? 'cursor-grab active:cursor-grabbing'
+								: 'cursor-crosshair'
+						}`}
 						onClick={handleCanvasClick}
+						onMouseDown={handleCanvasMouseDown}
 						onMouseMove={handleCanvasMouseMove}
 						onMouseUp={handleCanvasMouseUp}
-						onMouseLeave={handleCanvasMouseUp}
+						onMouseLeave={() => {
+							handleCanvasMouseUp()
+						}}
 						style={{ pointerEvents: 'auto' }}
 						aria-label={
 							isScaleCalibrationMode
@@ -1580,7 +1351,7 @@ export function VideoPlayer({
 							</button>
 						)}
 						{/* Axis visibility toggle */}
-						{axis && (
+						{axisHook.axis && (
 							<button
 								type="button"
 								onClick={() => setShowAxis(!showAxis)}
