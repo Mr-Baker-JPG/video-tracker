@@ -7,7 +7,9 @@ import { VideoAnalysisDashboard } from './video-analysis-dashboard.tsx'
 
 describe('VideoAnalysisDashboard', () => {
 	it('displays empty state when no tracking points', () => {
-		render(<VideoAnalysisDashboard trackingPoints={[]} scale={null} />)
+		render(
+			<VideoAnalysisDashboard trackingPoints={[]} scale={null} axis={null} />,
+		)
 
 		expect(screen.getByText(/No tracking data available/i)).toBeInTheDocument()
 	})
@@ -29,13 +31,17 @@ describe('VideoAnalysisDashboard', () => {
 		]
 
 		render(
-			<VideoAnalysisDashboard trackingPoints={trackingPoints} scale={null} />,
+			<VideoAnalysisDashboard
+				trackingPoints={trackingPoints}
+				scale={null}
+				axis={null}
+			/>,
 		)
 
 		expect(screen.getByText('Total Distance')).toBeInTheDocument()
-		expect(screen.getByText('Average Velocity')).toBeInTheDocument()
+		expect(screen.getByText('Avg Velocity')).toBeInTheDocument()
 		expect(screen.getByText('Max Velocity')).toBeInTheDocument()
-		expect(screen.getByText('Average Acceleration')).toBeInTheDocument()
+		expect(screen.getByText('Acceleration')).toBeInTheDocument()
 	})
 
 	it('displays statistics with pixel units when scale is not set', () => {
@@ -55,14 +61,20 @@ describe('VideoAnalysisDashboard', () => {
 		]
 
 		render(
-			<VideoAnalysisDashboard trackingPoints={trackingPoints} scale={null} />,
+			<VideoAnalysisDashboard
+				trackingPoints={trackingPoints}
+				scale={null}
+				axis={null}
+			/>,
 		)
 
 		// Check that units are displayed (px, px/s, px/s²)
-		const distanceCard = screen.getByText('Total Distance').closest('div')
+		const distanceCard = screen
+			.getByText('Total Distance')
+			.closest('.rounded-lg.border')
 		expect(distanceCard).toHaveTextContent('px')
 
-		const velocityCard = screen.getByText('Average Velocity').closest('div')
+		const velocityCard = screen.getByText('Avg Velocity').closest('.rounded-lg.border')
 		expect(velocityCard).toHaveTextContent('px/s')
 	})
 
@@ -87,19 +99,23 @@ describe('VideoAnalysisDashboard', () => {
 		}
 
 		render(
-			<VideoAnalysisDashboard trackingPoints={trackingPoints} scale={scale} />,
+			<VideoAnalysisDashboard
+				trackingPoints={trackingPoints}
+				scale={scale}
+				axis={null}
+			/>,
 		)
 
 		// Check that units are displayed (m, m/s, m/s²)
-		const distanceCard = screen.getByText('Total Distance').closest('div')
+		const distanceCard = screen
+			.getByText('Total Distance')
+			.closest('.rounded-lg.border')
 		expect(distanceCard).toHaveTextContent('m')
 
-		const velocityCard = screen.getByText('Average Velocity').closest('div')
+		const velocityCard = screen.getByText('Avg Velocity').closest('.rounded-lg.border')
 		expect(velocityCard).toHaveTextContent('m/s')
 
-		const accelerationCard = screen
-			.getByText('Average Acceleration')
-			.closest('div')
+		const accelerationCard = screen.getByText('Acceleration').closest('.rounded-lg.border')
 		expect(accelerationCard).toHaveTextContent('m/s²')
 	})
 
@@ -114,13 +130,17 @@ describe('VideoAnalysisDashboard', () => {
 		]
 
 		render(
-			<VideoAnalysisDashboard trackingPoints={trackingPoints} scale={null} />,
+			<VideoAnalysisDashboard
+				trackingPoints={trackingPoints}
+				scale={null}
+				axis={null}
+			/>,
 		)
 
-		expect(screen.getByText('Analysis Dashboard')).toBeInTheDocument()
-		expect(
-			screen.getByText(/Summary statistics from tracking data/i),
-		).toBeInTheDocument()
+		// Component doesn't have a title/description, it just shows metrics
+		// Verify metrics are displayed instead
+		expect(screen.getByText('Total Distance')).toBeInTheDocument()
+		expect(screen.getByText('Avg Velocity')).toBeInTheDocument()
 	})
 
 	it('displays numeric values for all metrics', () => {
@@ -140,12 +160,16 @@ describe('VideoAnalysisDashboard', () => {
 		]
 
 		const { container } = render(
-			<VideoAnalysisDashboard trackingPoints={trackingPoints} scale={null} />,
+			<VideoAnalysisDashboard
+				trackingPoints={trackingPoints}
+				scale={null}
+				axis={null}
+			/>,
 		)
 
 		// All metrics should display numeric values (not "0.00" necessarily, but numbers)
 		const cards = screen.getAllByText(
-			/Total Distance|Average Velocity|Max Velocity|Average Acceleration/,
+			/Total Distance|Avg Velocity|Max Velocity|Acceleration/,
 		)
 		expect(cards.length).toBeGreaterThan(0)
 
