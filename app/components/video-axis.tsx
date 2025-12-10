@@ -81,20 +81,20 @@ export function VideoAxis({
 	}, [isAxisConfigurationMode, onAxisConfigurationModeChange])
 
 	// Sync axis state when initialAxis prop changes
-	useEffect(() => {
-		console.log('initialAxis', initialAxis)
-		if (initialAxis) {
-			setAxis(initialAxis)
-			setAxisOrigin({ x: initialAxis.originX, y: initialAxis.originY })
-			setAxisRotation(initialAxis.rotationAngle)
-			setShowAxis(true)
-		} else {
-			setAxis(null)
-			setAxisOrigin(null)
-			setAxisRotation(0)
-			setShowAxis(false)
-		}
-	}, [initialAxis])
+	// useEffect(() => {
+	// 	console.log('initialAxis', initialAxis)
+	// 	if (initialAxis) {
+	// 		setAxis(initialAxis)
+	// 		setAxisOrigin({ x: initialAxis.originX, y: initialAxis.originY })
+	// 		setAxisRotation(initialAxis.rotationAngle)
+	// 		setShowAxis(true)
+	// 	} else {
+	// 		setAxis(null)
+	// 		setAxisOrigin(null)
+	// 		setAxisRotation(0)
+	// 		setShowAxis(false)
+	// 	}
+	// }, [initialAxis])
 
 	// Update axis state when axisOrigin or axisRotation changes
 	// Only notify parent when NOT dragging to prevent excessive updates
