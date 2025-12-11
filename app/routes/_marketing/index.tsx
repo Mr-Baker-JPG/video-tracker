@@ -30,11 +30,11 @@ export default function Index() {
 					{/* Brand */}
 					<Link to="/" className="flex items-center gap-2">
 						<img
-							src="/img/videotracker-logo-trans.svg"
-							alt="Videotrack"
+							src="/img/phystrack-logo.png"
+							alt="PhysTrack"
 							className="h-8 w-8"
 						/>
-						<span className="text-h6 tracking-tight">Videotrack</span>
+						<span className="text-h6 tracking-tight">PhysTrack</span>
 					</Link>
 
 					{/* Desktop nav links */}

@@ -68,8 +68,8 @@ export const links: Route.LinksFunction = () => {
 
 export const meta: Route.MetaFunction = ({ data }) => {
 	return [
-		{ title: data ? 'Epic Notes' : 'Error | Epic Notes' },
-		{ name: 'description', content: `Your own captain's log` },
+		{ title: data ? 'PhysTrack' : 'Error | PhysTrack' },
+		{ name: 'description', content: `Physics video analysis tool` },
 	]
 }
 
@@ -277,7 +277,7 @@ function App() {
 					<footer className="mt-12 border-t bg-white py-8">
 						<div className="mx-auto flex max-w-7xl items-center justify-between px-4">
 							<p className="text-sm text-slate-400">
-								&copy; 2025 Videotrack Analysis Tool. v1.1.0
+								&copy; 2025 PhysTrack Analysis Tool. v1.1.0
 							</p>
 							<div className="flex gap-4 text-sm text-slate-400">
 								<Link to="/support" className="hover:text-slate-600">
@@ -303,12 +303,8 @@ function Logo() {
 			to="/videos"
 			className="flex cursor-pointer items-center gap-2 text-xl font-bold text-slate-900"
 		>
-			<img
-				src="/img/videotracker-logo-trans.svg"
-				alt="Videotrack"
-				className="h-8 w-8"
-			/>
-			Videotrack
+			<img src="/img/phystrack-logo.png" alt="PhysTrack" className="h-8 w-8" />
+			PhysTrack
 		</Link>
 	)
 }
