@@ -244,11 +244,15 @@ test(
 
 		// Find the delete button (trash icon) - it's hidden until hover, so we need to query it directly
 		const userEventInstance = userEvent.setup()
-		const videoCard = screen.getByText('test-video-to-delete.mp4').closest('.group')
+		const videoCard = screen
+			.getByText('test-video-to-delete.mp4')
+			.closest('.group')
 		expect(videoCard).toBeInTheDocument()
 
 		// Find delete button by aria-label or role
-		const deleteButton = videoCard?.querySelector('button[aria-label*="delete" i], button:has(svg)')
+		const deleteButton = videoCard?.querySelector(
+			'button[aria-label*="delete" i], button:has(svg)',
+		)
 		expect(deleteButton).toBeInTheDocument()
 
 		// Click delete button to open dialog
@@ -256,11 +260,15 @@ test(
 
 		// Wait for dialog to appear
 		await waitFor(() => {
-			expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument()
+			expect(
+				screen.getByText(/are you sure you want to delete/i),
+			).toBeInTheDocument()
 		})
 
 		// Find and click the confirm delete button in the dialog
-		const confirmDeleteButton = screen.getByRole('button', { name: /^delete$/i })
+		const confirmDeleteButton = screen.getByRole('button', {
+			name: /^delete$/i,
+		})
 		expect(confirmDeleteButton).toBeInTheDocument()
 
 		await userEventInstance.click(confirmDeleteButton)

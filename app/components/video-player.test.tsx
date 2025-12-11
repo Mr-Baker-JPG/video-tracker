@@ -342,21 +342,24 @@ test('Time display includes milliseconds', async () => {
 	// Trigger events to update display
 	video.dispatchEvent(new Event('loadedmetadata'))
 	video.dispatchEvent(new Event('canplay'))
-	
+
 	// Wait a bit for state to update
-	await new Promise(resolve => setTimeout(resolve, 100))
-	
+	await new Promise((resolve) => setTimeout(resolve, 100))
+
 	video.dispatchEvent(new Event('timeupdate'))
 
 	// Time display should show format with milliseconds (MM:SS.mmm)
 	// The time is displayed in spans with class "font-mono text-xs text-slate-300"
-	await waitFor(() => {
-		// Look for time display - it should show format like "0:01.234"
-		const timeDisplay = container.textContent
-		expect(timeDisplay).toBeTruthy()
-		// Format is MM:SS.mmm (e.g., "0:01.234" or "1:23.456")
-		expect(timeDisplay).toMatch(/\d+:\d{2}\.\d{3}/)
-	}, { timeout: 3000 })
+	await waitFor(
+		() => {
+			// Look for time display - it should show format like "0:01.234"
+			const timeDisplay = container.textContent
+			expect(timeDisplay).toBeTruthy()
+			// Format is MM:SS.mmm (e.g., "0:01.234" or "1:23.456")
+			expect(timeDisplay).toMatch(/\d+:\d{2}\.\d{3}/)
+		},
+		{ timeout: 3000 },
+	)
 })
 
 test('Trajectory path is drawn from tracking points', async () => {
