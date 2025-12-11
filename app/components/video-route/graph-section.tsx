@@ -1,6 +1,7 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	Tabs,
 	TabsContent,
@@ -8,6 +9,7 @@ import {
 	TabsTrigger,
 } from '#app/components/ui/tabs.tsx'
 import { VelocityVsTimeGraph } from '#app/components/velocity-vs-time-graph.tsx'
+import { FullscreenModal } from '#app/components/video-route/fullscreen-modal.tsx'
 import {
 	type TrackingObject,
 	type TrackingPoint,
@@ -30,6 +32,9 @@ export function GraphSection({
 	axis,
 	activeTool,
 }: GraphSectionProps) {
+	const [isGraphFullscreen, setIsGraphFullscreen] = useState(false)
+	const [activeTab, setActiveTab] = useState<string>('position')
+
 	// Memoize graph props with deep equality checking to prevent unnecessary re-renders
 	// Only update when the actual data content changes, not just object references
 	const prevGraphPropsRef = useRef<{
@@ -76,62 +81,146 @@ export function GraphSection({
 		return newProps
 	}, [trackingPoints, trackingObjects, scale, axis])
 
-	return (
-		<div
-			key={activeTool}
-			className="flex min-h-[400px] min-w-[200px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+	// Render graph content (shared between card and modal)
+	const renderGraphContent = (containerClassName: string) => (
+		<Tabs
+			value={activeTab}
+			onValueChange={setActiveTab}
+			className="flex h-full flex-col"
 		>
-			<Tabs defaultValue="position" className="flex h-full flex-col">
-				{/* Tab header - Primary, not secondary */}
-				<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-					<TabsList className="grid w-auto grid-cols-3">
-						<TabsTrigger value="position">Position</TabsTrigger>
-						<TabsTrigger value="velocity">Velocity</TabsTrigger>
-						<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
-					</TabsList>
+			{/* Tab header */}
+			<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+				<TabsList className="grid w-auto grid-cols-3">
+					<TabsTrigger value="position">Position</TabsTrigger>
+					<TabsTrigger value="velocity">Velocity</TabsTrigger>
+					<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
+				</TabsList>
+			</div>
+			{/* Graph area with card container */}
+			<div className={`flex min-h-0 flex-1 p-6 ${containerClassName}`}>
+				<div className="flex h-full min-h-[400px] w-full rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
+					<TabsContent
+						value="position"
+						className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+						style={{ minHeight: 400, minWidth: 1 }}
+					>
+						<PositionVsTimeGraph
+							trackingPoints={graphProps.trackingPoints}
+							trackingObjects={graphProps.trackingObjects}
+							scale={graphProps.scale}
+							axis={graphProps.axis}
+						/>
+					</TabsContent>
+					<TabsContent
+						value="velocity"
+						className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+						style={{ minHeight: 400 }}
+					>
+						<VelocityVsTimeGraph
+							trackingPoints={graphProps.trackingPoints}
+							trackingObjects={graphProps.trackingObjects}
+							scale={graphProps.scale}
+							axis={graphProps.axis}
+						/>
+					</TabsContent>
+					<TabsContent
+						value="acceleration"
+						className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+						style={{ minHeight: 400 }}
+					>
+						<AccelerationVsTimeGraph
+							trackingPoints={graphProps.trackingPoints}
+							trackingObjects={graphProps.trackingObjects}
+							scale={graphProps.scale}
+							axis={graphProps.axis}
+						/>
+					</TabsContent>
 				</div>
-				{/* Graph area with card container */}
-				<div className="flex min-h-0 flex-1 p-6">
-					<div className="flex h-full min-h-[400px] w-full rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
-						<TabsContent
-							value="position"
-							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-							style={{ minHeight: 400, minWidth: 1 }}
+			</div>
+		</Tabs>
+	)
+
+	return (
+		<>
+			<div
+				key={activeTool}
+				className="flex min-h-[400px] min-w-[200px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+			>
+				<Tabs
+					value={activeTab}
+					onValueChange={setActiveTab}
+					className="flex h-full flex-col"
+				>
+					{/* Tab header - Primary, not secondary */}
+					<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+						<TabsList className="grid w-auto grid-cols-3">
+							<TabsTrigger value="position">Position</TabsTrigger>
+							<TabsTrigger value="velocity">Velocity</TabsTrigger>
+							<TabsTrigger value="acceleration">Acceleration</TabsTrigger>
+						</TabsList>
+						<button
+							type="button"
+							onClick={() => setIsGraphFullscreen(true)}
+							className="rounded-lg p-1.5 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+							aria-label="Open graphs in fullscreen"
+							title="Fullscreen"
 						>
-							<PositionVsTimeGraph
-								trackingPoints={graphProps.trackingPoints}
-								trackingObjects={graphProps.trackingObjects}
-								scale={graphProps.scale}
-								axis={graphProps.axis}
-							/>
-						</TabsContent>
-						<TabsContent
-							value="velocity"
-							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-							style={{ minHeight: 400 }}
-						>
-							<VelocityVsTimeGraph
-								trackingPoints={graphProps.trackingPoints}
-								trackingObjects={graphProps.trackingObjects}
-								scale={graphProps.scale}
-								axis={graphProps.axis}
-							/>
-						</TabsContent>
-						<TabsContent
-							value="acceleration"
-							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-							style={{ minHeight: 400 }}
-						>
-							<AccelerationVsTimeGraph
-								trackingPoints={graphProps.trackingPoints}
-								trackingObjects={graphProps.trackingObjects}
-								scale={graphProps.scale}
-								axis={graphProps.axis}
-							/>
-						</TabsContent>
+							<Icon name="panel-bottom" className="h-4 w-4 text-slate-600" />
+						</button>
 					</div>
+					{/* Graph area with card container */}
+					<div className="flex min-h-0 flex-1 p-6">
+						<div className="flex h-full min-h-[400px] w-full rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
+							<TabsContent
+								value="position"
+								className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+								style={{ minHeight: 400, minWidth: 1 }}
+							>
+								<PositionVsTimeGraph
+									trackingPoints={graphProps.trackingPoints}
+									trackingObjects={graphProps.trackingObjects}
+									scale={graphProps.scale}
+									axis={graphProps.axis}
+								/>
+							</TabsContent>
+							<TabsContent
+								value="velocity"
+								className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+								style={{ minHeight: 400 }}
+							>
+								<VelocityVsTimeGraph
+									trackingPoints={graphProps.trackingPoints}
+									trackingObjects={graphProps.trackingObjects}
+									scale={graphProps.scale}
+									axis={graphProps.axis}
+								/>
+							</TabsContent>
+							<TabsContent
+								value="acceleration"
+								className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+								style={{ minHeight: 400 }}
+							>
+								<AccelerationVsTimeGraph
+									trackingPoints={graphProps.trackingPoints}
+									trackingObjects={graphProps.trackingObjects}
+									scale={graphProps.scale}
+									axis={graphProps.axis}
+								/>
+							</TabsContent>
+						</div>
+					</div>
+				</Tabs>
+			</div>
+
+			{/* Fullscreen Modal for Graph Section */}
+			<FullscreenModal
+				open={isGraphFullscreen}
+				onClose={() => setIsGraphFullscreen(false)}
+			>
+				<div className="flex h-full flex-col">
+					{renderGraphContent('')}
 				</div>
-			</Tabs>
-		</div>
+			</FullscreenModal>
+		</>
 	)
 }

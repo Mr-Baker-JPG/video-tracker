@@ -307,8 +307,8 @@
 				"Manual: Verify framer-motion expansion animation is smooth",
 				"Manual: Verify modal content is properly sized and scrollable if needed"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F023",
@@ -332,6 +332,32 @@
 			],
 			"implemented": true,
 			"tests_passed": true
+		},
+		{
+			"id": "F024",
+			"title": "Dual-Mode Video Storage with FFmpeg Compression",
+			"description": "Implement two storage modes for videos: (1) Student mode (default): Videos stored entirely in client-side IndexedDB/WebDB with FFmpeg.wasm compression, no server storage. (2) Teacher mode: Videos stored in Tigris (server-side) with compression, and cached locally in IndexedDB when watching. Storage mode is automatically detected based on class/teacher association (defaults to student mode in v1). All videos are compressed using FFmpeg.wasm with settings optimized for physics analysis: H.264 codec, 1080p max resolution (scale filter caps at 1920px width), CRF 20, slow preset, with fast-start enabled for web playback. If compression fails, show a warning but allow upload to proceed.",
+			"tests": [
+				"Unit test: FFmpeg compression function compresses video with correct parameters (1080p cap, H.264, CRF 20)",
+				"Unit test: Compression handles videos larger than 1080p by scaling down",
+				"Unit test: Compression preserves videos at or below 1080p without upscaling",
+				"Unit test: Compression ensures even dimensions (divisible by 2) for H.264 compatibility",
+				"Unit test: IndexedDB storage utility can store and retrieve video blobs",
+				"Unit test: Storage mode detection defaults to student mode when no class/teacher association exists",
+				"Unit test: Student mode stores video in IndexedDB only, not in Tigris",
+				"Unit test: Teacher mode stores video in Tigris and caches in IndexedDB",
+				"E2E test: Student user can upload video, see compression progress, and video is stored locally (check IndexedDB)",
+				"E2E test: Student user can watch video from local storage without server request",
+				"E2E test: Teacher user can upload video, see compression progress, and video is stored in Tigris",
+				"E2E test: Teacher user can watch video, which is cached to IndexedDB on first watch",
+				"E2E test: Compression failure shows warning but allows upload to proceed",
+				"Manual: Verify compressed video quality is acceptable for physics tracking (1080p precision maintained)",
+				"Manual: Verify compression reduces file size significantly while maintaining tracking accuracy",
+				"Manual: Verify videos play correctly from IndexedDB in student mode",
+				"Manual: Verify teacher videos are accessible from Tigris and cache properly on watch"
+			],
+			"implemented": false,
+			"tests_passed": false
 		}
 	]
 }

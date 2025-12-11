@@ -19,7 +19,13 @@ test('Graph component receives and displays tracking data', () => {
 		{ frame: 60, x: 200, y: 300, trackingObjectId: 'obj1' },
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 
 	// Check that axis toggle tabs are present (using Tabs component)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
@@ -49,7 +55,13 @@ test('X/Y toggle switches graph axes correctly', async () => {
 		{ frame: 30, x: 150, y: 250, trackingObjectId: 'obj1' },
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 
 	// Initially X axis should be selected (default)
 	const xTab = screen.getByRole('tab', { name: /x axis/i })
@@ -82,7 +94,13 @@ test('Velocity calculation is correct for sample data', () => {
 		{ frame: 30, x: 150, y: 200, trackingObjectId: 'obj1' }, // 50 pixels in 1 second
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 
 	// Graph should render - check that tabs are present
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
@@ -95,7 +113,11 @@ test('Velocity handles edge cases (first/last frames)', () => {
 	const singlePoint = [{ frame: 0, x: 100, y: 200, trackingObjectId: 'obj1' }]
 
 	const { unmount: unmount1 } = render(
-		<VelocityVsTimeGraph trackingPoints={singlePoint} scale={null} axis={null} />,
+		<VelocityVsTimeGraph
+			trackingPoints={singlePoint}
+			scale={null}
+			axis={null}
+		/>,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount1()
@@ -119,7 +141,13 @@ test('Velocity handles edge cases (first/last frames)', () => {
 		{ frame: 60, x: 200, y: 300, trackingObjectId: 'obj1' },
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={multiplePoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={multiplePoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 })
 
@@ -130,7 +158,13 @@ test('Velocity converts to m/s when scale is available', () => {
 	]
 	const scale = { pixelsPerMeter: 100 } // 100 pixels = 1 meter
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={scale} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={scale}
+			axis={null}
+		/>,
+	)
 
 	// Graph should render with scale data
 	// The component should handle scale conversion internally
@@ -147,7 +181,13 @@ test('Graph handles multiple tracking objects', () => {
 		{ frame: 30, x: 75, y: 125, trackingObjectId: 'obj2' },
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 
 	// Graph should render with multiple objects
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
@@ -162,7 +202,13 @@ test('Best fit controls render and can toggle model panel', async () => {
 		{ frame: 60, x: 20, y: 10, trackingObjectId: 'obj1' },
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 
 	const generateButton = screen.getByRole('button', {
 		name: /generate best fit/i,
@@ -185,7 +231,13 @@ test('All function types are available in dropdown', () => {
 		{ frame: 60, x: 20, y: 10, trackingObjectId: 'obj1' },
 	]
 
-	render(<VelocityVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />)
+	render(
+		<VelocityVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
+	)
 
 	const select = screen.getByLabelText(/fit:/i)
 	expect(select).toBeInTheDocument()

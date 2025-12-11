@@ -20,7 +20,11 @@ test('Graph component receives and displays tracking data', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 
 	// Check that axis toggle tabs are present (using Tabs component)
@@ -35,7 +39,9 @@ test('Graph component receives and displays tracking data', () => {
 })
 
 test('Graph component shows empty state when no tracking data', () => {
-	render(<AccelerationVsTimeGraph trackingPoints={[]} scale={null} axis={null} />)
+	render(
+		<AccelerationVsTimeGraph trackingPoints={[]} scale={null} axis={null} />,
+	)
 
 	expect(
 		screen.getByText(
@@ -52,7 +58,11 @@ test('X/Y toggle switches graph axes correctly', async () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 
 	// Initially X axis should be selected (default)
@@ -90,7 +100,11 @@ test('Acceleration calculation is correct for sample data', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 
 	// Graph should render - check that tabs are present
@@ -104,7 +118,11 @@ test('Acceleration handles edge cases', () => {
 	const singlePoint = [{ frame: 0, x: 100, y: 200, trackingObjectId: 'obj1' }]
 
 	const { unmount: unmount1 } = render(
-		<AccelerationVsTimeGraph trackingPoints={singlePoint} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={singlePoint}
+			scale={null}
+			axis={null}
+		/>,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount1()
@@ -116,7 +134,11 @@ test('Acceleration handles edge cases', () => {
 	]
 
 	const { unmount: unmount2 } = render(
-		<AccelerationVsTimeGraph trackingPoints={twoPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={twoPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount2()
@@ -129,7 +151,11 @@ test('Acceleration handles edge cases', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={multiplePoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={multiplePoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 })
@@ -143,7 +169,11 @@ test('Acceleration converts to m/s² when scale is available', () => {
 	const scale = { pixelsPerMeter: 100 } // 100 pixels = 1 meter
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={scale} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={scale}
+			axis={null}
+		/>,
 	)
 
 	// Graph should render with scale data
@@ -162,7 +192,11 @@ test('Graph handles multiple tracking objects', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 
 	// Graph should render with multiple objects
@@ -179,7 +213,11 @@ test('Best fit controls render and can toggle model panel', async () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 
 	const generateButton = screen.getByRole('button', {
@@ -204,7 +242,11 @@ test('All function types are available in dropdown', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+		<AccelerationVsTimeGraph
+			trackingPoints={trackingPoints}
+			scale={null}
+			axis={null}
+		/>,
 	)
 
 	const select = screen.getByLabelText(/fit:/i)
