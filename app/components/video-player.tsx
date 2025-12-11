@@ -814,26 +814,26 @@ export function VideoPlayer({
 	}, [videoId, axisHook.axis, fetcher])
 
 	// Auto-save axis when it changes (debounced)
-	useEffect(() => {
-		if (!axisHook.axis) return
+	// useEffect(() => {
+	// 	if (!axisHook.axis) return
 
-		// Clear existing timeout
-		if (axisSaveTimeoutRef.current) {
-			clearTimeout(axisSaveTimeoutRef.current)
-		}
+	// 	// Clear existing timeout
+	// 	if (axisSaveTimeoutRef.current) {
+	// 		clearTimeout(axisSaveTimeoutRef.current)
+	// 	}
 
-		// Set new timeout to save after 500ms of no changes
-		axisSaveTimeoutRef.current = setTimeout(() => {
-			handleSaveAxis()
-		}, 500)
+	// 	// Set new timeout to save after 500ms of no changes
+	// 	axisSaveTimeoutRef.current = setTimeout(() => {
+	// 		handleSaveAxis()
+	// 	}, 500)
 
-		// Cleanup timeout on unmount or when axis changes
-		return () => {
-			if (axisSaveTimeoutRef.current) {
-				clearTimeout(axisSaveTimeoutRef.current)
-			}
-		}
-	}, [axisHook.axis, handleSaveAxis])
+	// 	// Cleanup timeout on unmount or when axis changes
+	// 	return () => {
+	// 		if (axisSaveTimeoutRef.current) {
+	// 			clearTimeout(axisSaveTimeoutRef.current)
+	// 		}
+	// 	}
+	// }, [axisHook.axis, handleSaveAxis])
 
 	// Update scale when fetcher returns new data
 	useEffect(() => {

@@ -14,8 +14,8 @@ import { WorkflowStepper } from '#app/components/video-route/workflow-stepper.ts
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getVideoSrc } from '#app/utils/misc.tsx'
-import { getActiveTrackingObjectId } from '#app/utils/tracking-object-selection.server.ts'
 import { generateTrackingDataCSV } from '#app/utils/tracking-data-csv.ts'
+import { getActiveTrackingObjectId } from '#app/utils/tracking-object-selection.server.ts'
 import { action } from './$videoId.actions.server.ts'
 import {
 	useTrackingObjects,
@@ -178,19 +178,6 @@ export default function VideoRoute({ loaderData }: Route.ComponentProps) {
 								originY: 0,
 							}}
 						>
-							<div className="flex flex-col gap-4">
-								{loaderData.axis && (
-									<div className="flex flex-col gap-2">
-										<div className="text-xs font-bold tracking-wider text-slate-400 uppercase">
-											Axis
-										</div>
-										<div className="text-xs text-slate-500">
-											{loaderData.axis.originX}, {loaderData.axis.originY}{' '}
-											{loaderData.axis.rotationAngle}
-										</div>
-									</div>
-								)}
-							</div>
 							<VideoPlayer
 								src={loaderData.videoSrc}
 								videoId={loaderData.video.id}

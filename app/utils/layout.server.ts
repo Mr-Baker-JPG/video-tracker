@@ -14,3 +14,6 @@ export function setLayout(layout: VideoLayout) {
 	return cookie.serialize(cookieName, layout, { path: '/', maxAge: 31536000 })
 }
 
+
+
+

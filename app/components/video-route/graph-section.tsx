@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react'
+import { AccelerationVsTimeGraph } from '#app/components/acceleration-vs-time-graph.tsx'
 import { PositionVsTimeGraph } from '#app/components/position-vs-time-graph.tsx'
 import {
 	Tabs,
@@ -6,11 +7,12 @@ import {
 	TabsList,
 	TabsTrigger,
 } from '#app/components/ui/tabs.tsx'
-import type {
-	TrackingObject,
-	TrackingPoint,
-	VideoAxis,
-	VideoScale,
+import { VelocityVsTimeGraph } from '#app/components/velocity-vs-time-graph.tsx'
+import {
+	type TrackingObject,
+	type TrackingPoint,
+	type VideoAxis,
+	type VideoScale,
 } from '#app/routes/videos/$videoId.types.ts'
 
 type GraphSectionProps = {
@@ -108,14 +110,24 @@ export function GraphSection({
 							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
 							style={{ minHeight: 400 }}
 						>
-							{/* Velocity graph placeholder */}
+							<VelocityVsTimeGraph
+								trackingPoints={graphProps.trackingPoints}
+								trackingObjects={graphProps.trackingObjects}
+								scale={graphProps.scale}
+								axis={graphProps.axis}
+							/>
 						</TabsContent>
 						<TabsContent
 							value="acceleration"
 							className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
 							style={{ minHeight: 400 }}
 						>
-							{/* Acceleration graph placeholder */}
+							<AccelerationVsTimeGraph
+								trackingPoints={graphProps.trackingPoints}
+								trackingObjects={graphProps.trackingObjects}
+								scale={graphProps.scale}
+								axis={graphProps.axis}
+							/>
 						</TabsContent>
 					</div>
 				</div>
