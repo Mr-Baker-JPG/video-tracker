@@ -203,25 +203,9 @@ function App() {
 	const theme = useTheme()
 	const matches = useMatches()
 	const isOnSearchPage = matches.find((m) => m.id === 'routes/users/index')
-	const isMarketingRoute = matches.some((m) =>
-		m.id?.startsWith('routes/_marketing'),
-	)
+	const isOnMarketingRoute = matches.some((m) => m.id?.includes('_marketing'))
 	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
-
-	// Marketing routes have their own full-page layout
-	if (isMarketingRoute) {
-		return (
-			<OpenImgContextProvider
-				optimizerEndpoint="/resources/images"
-				getSrc={getImgSrc}
-			>
-				<Outlet />
-				<EpicToaster closeButton position="top-center" theme={theme} />
-				<EpicProgress />
-			</OpenImgContextProvider>
-		)
-	}
 
 	return (
 		<OpenImgContextProvider
@@ -229,73 +213,83 @@ function App() {
 			getSrc={getImgSrc}
 		>
 			<div className="flex min-h-screen flex-col">
-				<nav className="sticky top-0 z-50 border-b bg-white shadow-sm">
-					<div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-						<div className="flex items-center gap-6">
-							<Logo />
-							{user && (
-								<div className="hidden gap-1 text-sm font-medium text-slate-500 md:flex">
-									<Link
-										to="/videos"
-										className="rounded-md bg-slate-100 px-3 py-2 text-slate-900 transition-colors"
-									>
-										Dashboard
-									</Link>
-									<Link
-										to="/tutorials"
-										className="hover:text-primary rounded-md px-3 py-2 transition-colors hover:bg-slate-50"
-									>
-										Tutorials
-									</Link>
-									<Link
-										to="/classroom"
-										className="hover:text-primary rounded-md px-3 py-2 transition-colors hover:bg-slate-50"
-									>
-										Classroom
-									</Link>
-								</div>
-							)}
+				{!isOnMarketingRoute && (
+					<nav className="sticky top-0 z-50 border-b bg-white shadow-sm">
+						<div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+							<div className="flex items-center gap-6">
+								<Logo />
+								{user && (
+									<div className="hidden gap-1 text-sm font-medium text-slate-500 md:flex">
+										<Link
+											to="/videos"
+											className="rounded-md bg-slate-100 px-3 py-2 text-slate-900 transition-colors"
+										>
+											Dashboard
+										</Link>
+										<Link
+											to="/tutorials"
+											className="hover:text-primary rounded-md px-3 py-2 transition-colors hover:bg-slate-50"
+										>
+											Tutorials
+										</Link>
+										<Link
+											to="/classroom"
+											className="hover:text-primary rounded-md px-3 py-2 transition-colors hover:bg-slate-50"
+										>
+											Classroom
+										</Link>
+									</div>
+								)}
+							</div>
+							<div className="flex items-center gap-3">
+								{user ? (
+									<>
+										<button
+											type="button"
+											className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+											aria-label="Notifications"
+										>
+											<Icon name="bell" className="h-4 w-4" />
+										</button>
+										<UserDropdown />
+									</>
+								) : (
+									<Button asChild variant="default" size="lg">
+										<Link to="/login">Log In</Link>
+									</Button>
+								)}
+							</div>
 						</div>
-						<div className="flex items-center gap-3">
-							{user ? (
-								<>
-									<button
-										type="button"
-										className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
-										aria-label="Notifications"
-									>
-										<Icon name="bell" className="h-4 w-4" />
-									</button>
-									<UserDropdown />
-								</>
-							) : (
-								<Button asChild variant="default" size="lg">
-									<Link to="/login">Log In</Link>
-								</Button>
-							)}
-						</div>
-					</div>
-				</nav>
+					</nav>
+				)}
 
-				<main className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-6 lg:p-8">
+				<main
+					className={
+						isOnMarketingRoute
+							? ''
+							: 'mx-auto w-full max-w-7xl flex-1 p-4 md:p-6 lg:p-8'
+					}
+				>
 					<Outlet />
 				</main>
 
-				<footer className="mt-12 border-t bg-white py-8">
-					<div className="mx-auto flex max-w-7xl items-center justify-between px-4">
-						<p className="text-sm text-slate-400">
-							&copy; 2025 Videotrack Analysis Tool. v1.1.0
-						</p>
-						<div className="flex gap-4 text-sm text-slate-400">
-							<Link to="/support" className="hover:text-slate-600">
-								Help Center
-							</Link>
-							<Link to="/privacy" className="hover:text-slate-600">
-								Privacy
-							</Link>
+				{!isOnMarketingRoute && (
+					<footer className="mt-12 border-t bg-white py-8">
+						<div className="mx-auto flex max-w-7xl items-center justify-between px-4">
+							<p className="text-sm text-slate-400">
+								&copy; 2025 Videotrack Analysis Tool. v1.1.0
+							</p>
+							<div className="flex gap-4 text-sm text-slate-400">
+								<Link to="/support" className="hover:text-slate-600">
+									Help Center
+								</Link>
+								<Link to="/privacy" className="hover:text-slate-600">
+									Privacy
+								</Link>
+							</div>
 						</div>
-					</div>
-				</footer>
+					</footer>
+				)}
 			</div>
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
@@ -309,9 +303,11 @@ function Logo() {
 			to="/videos"
 			className="flex cursor-pointer items-center gap-2 text-xl font-bold text-slate-900"
 		>
-			<div className="bg-primary rounded p-1 text-white">
-				<Icon name="film" className="h-5 w-5" />
-			</div>
+			<img
+				src="/img/videotracker-logo-trans.svg"
+				alt="Videotrack"
+				className="h-8 w-8"
+			/>
 			Videotrack
 		</Link>
 	)

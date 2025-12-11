@@ -1,5 +1,7 @@
+import { redirect } from 'react-router'
 import { Link } from 'react-router'
 import { type Route } from './+types/index.ts'
+import { getUserId } from '#app/utils/auth.server.ts'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'Videotrack – Physics Video Analysis for Classrooms' },
@@ -10,6 +12,15 @@ export const meta: Route.MetaFunction = () => [
 	},
 ]
 
+export async function loader({ request }: Route.LoaderArgs) {
+	// If user is logged in, redirect to videos
+	const userId = await getUserId(request)
+	if (userId) {
+		throw redirect('/videos')
+	}
+	return {}
+}
+
 export default function Index() {
 	return (
 		<div className="flex min-h-screen flex-col">
@@ -18,12 +29,11 @@ export default function Index() {
 				<nav className="container flex h-16 items-center justify-between gap-4">
 					{/* Brand */}
 					<Link to="/" className="flex items-center gap-2">
-						<span className="bg-primary text-primary-foreground inline-flex h-8 w-8 items-center justify-center rounded-lg shadow-sm">
-							{/* Simple icon: play button in a square */}
-							<span className="bg-primary-foreground text-primary inline-flex h-4 w-4 items-center justify-center rounded text-[10px] leading-none font-bold">
-								▶
-							</span>
-						</span>
+						<img
+							src="/img/videotracker-logo-trans.svg"
+							alt="Videotrack"
+							className="h-8 w-8"
+						/>
 						<span className="text-h6 tracking-tight">Videotrack</span>
 					</Link>
 
@@ -87,7 +97,7 @@ export default function Index() {
 								<span className="text-primary block">In seconds.</span>
 							</h1>
 
-							<p className="text-body-md text-muted-foreground max-w-xl">
+							<p className="text-body-md text-muted-foreground max-w-2xl">
 								Videotrack turns everyday videos into high-quality motion data.
 								Upload, track, and visualize real experiments without manual
 								frame counting or complex software.
@@ -96,7 +106,7 @@ export default function Index() {
 							<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
 								<Link
 									to="/signup"
-									className="bg-primary text-button text-primary-foreground hover:bg-primary-hover inline-flex items-center justify-center rounded-lg px-6 py-3 shadow-md transition-colors"
+									className="bg-warm-accent text-button text-warm-accent-foreground hover:bg-warm-accent-hover inline-flex items-center justify-center rounded-lg px-6 py-3 shadow-md transition-colors"
 								>
 									Get started free
 								</Link>
@@ -117,204 +127,27 @@ export default function Index() {
 							</p>
 						</div>
 
-						{/* Right: hero mock UI */}
+						{/* Right: video/animation placeholder */}
 						<div className="flex-1">
-							<div className="bg-card ring-border relative mx-auto max-w-xl rounded-xl shadow-xl ring-1">
-								{/* Top bar */}
-								<div className="border-border flex items-center justify-between border-b px-4 py-3">
-									<div className="flex items-center gap-1.5">
-										<span className="bg-destructive/80 h-2.5 w-2.5 rounded-full"></span>
-										<span className="bg-warning/80 h-2.5 w-2.5 rounded-full"></span>
-										<span className="bg-success/80 h-2.5 w-2.5 rounded-full"></span>
-									</div>
-									<div className="bg-muted text-muted-foreground rounded-full px-3 py-1 text-[11px] font-medium">
-										Pendulum.mp4 · 62 frames
-									</div>
-									<div className="text-muted-foreground text-[11px]">
-										Demo preview
-									</div>
-								</div>
-
-								{/* Video + controls */}
-								<div className="border-border grid gap-0 border-b md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-									{/* Video area */}
-									<div className="bg-player-bg/90 relative px-4 pt-3 pb-4">
-										<div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-black/60">
-											{/* Fake video frame */}
-											<div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-												{/* Scale badge */}
-												<div className="bg-success/90 text-player-fg absolute top-3 left-3 rounded-full px-2 py-1 text-[10px] font-medium shadow-xs">
-													Scale: 0.20 m
-												</div>
-
-												{/* Tracking dots / path */}
-												<div className="absolute inset-x-[48%] top-6 bottom-10 flex flex-col items-center justify-between">
-													{/* Dots */}
-													<div className="bg-data-position/60 h-10 w-0.5 rounded-full"></div>
-													<div className="bg-data-velocity/60 h-10 w-0.5 rounded-full"></div>
-													<div className="bg-data-acceleration/60 h-10 w-0.5 rounded-full"></div>
-												</div>
-
-												{/* Origin axes */}
-												<div className="bg-player-progress-bg/60 absolute inset-x-4 bottom-10 h-px"></div>
-												<div className="bg-player-progress-bg/60 absolute bottom-10 left-1/2 h-12 w-px -translate-x-1/2"></div>
-
-												{/* Tracking label */}
-												<div className="bg-muted/90 text-muted-foreground absolute top-3 right-3 rounded-full px-2 py-1 text-[10px] font-medium">
-													Tracking: bobber
-												</div>
-											</div>
+							<div className="bg-card ring-border relative mx-auto max-w-xl overflow-hidden rounded-xl shadow-xl ring-1">
+								{/* Video/Animation Placeholder */}
+								<div className="relative flex aspect-video items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100">
+									<div className="space-y-4 p-8 text-center">
+										<div className="bg-primary/10 mx-auto flex h-16 w-16 items-center justify-center rounded-full">
+											<span className="text-2xl">📹</span>
 										</div>
-
-										{/* Playback controls */}
-										<div className="mt-3 space-y-2">
-											<div className="bg-player-progress-bg/40 h-1.5 w-full rounded-full">
-												<div className="bg-primary h-1.5 w-1/3 rounded-full"></div>
-											</div>
-											<div className="text-player-fg/80 flex items-center justify-between text-[11px]">
-												<span>00:18 / 02:10</span>
-												<span>Frame 21 of 62</span>
-											</div>
-											<div className="mt-2 flex items-center justify-center gap-3">
-												<button
-													type="button"
-													className="bg-muted text-muted-foreground hover:bg-secondary inline-flex h-8 w-8 items-center justify-center rounded-full text-[13px] transition-colors"
-												>
-													⏮
-												</button>
-												<button
-													type="button"
-													className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex h-9 w-9 items-center justify-center rounded-full text-[13px] shadow-md transition-colors"
-												>
-													▶
-												</button>
-												<button
-													type="button"
-													className="bg-muted text-muted-foreground hover:bg-secondary inline-flex h-8 w-8 items-center justify-center rounded-full text-[13px] transition-colors"
-												>
-													⏭
-												</button>
-											</div>
+										<div className="space-y-2">
+											<p className="text-body-sm text-foreground font-semibold">
+												Video/Animation Placeholder
+											</p>
+											<p className="text-body-xs text-muted-foreground mx-auto max-w-xs">
+												This will show a looped video or GIF demonstrating the
+												graph drawing in real-time
+											</p>
 										</div>
 									</div>
-
-									{/* Metrics / table */}
-									<div className="border-border bg-muted/60 flex flex-col border-t p-4 md:border-t-0 md:border-l">
-										{/* Metrics */}
-										<div className="grid grid-cols-2 gap-3">
-											<div className="bg-card rounded-lg p-3 shadow-xs">
-												<p className="text-body-2xs text-muted-foreground">
-													Total distance
-												</p>
-												<p className="text-body-lg mt-1 font-semibold">
-													1.72 m
-												</p>
-											</div>
-											<div className="bg-card rounded-lg p-3 shadow-xs">
-												<p className="text-body-2xs text-muted-foreground">
-													Average velocity
-												</p>
-												<p className="text-body-lg text-data-velocity mt-1 font-semibold">
-													1.56 m/s
-												</p>
-											</div>
-											<div className="bg-card rounded-lg p-3 shadow-xs">
-												<p className="text-body-2xs text-muted-foreground">
-													Max velocity
-												</p>
-												<p className="text-body-lg mt-1 font-semibold">
-													3.57 m/s
-												</p>
-											</div>
-											<div className="bg-card rounded-lg p-3 shadow-xs">
-												<p className="text-body-2xs text-muted-foreground">
-													Acceleration
-												</p>
-												<p className="text-body-lg text-data-acceleration mt-1 font-semibold">
-													24.31 m/s²
-												</p>
-											</div>
-										</div>
-
-										{/* Table preview */}
-										<div className="bg-card mt-4 flex-1 rounded-lg p-3 shadow-xs">
-											<div className="text-muted-foreground flex items-center justify-between text-[11px]">
-												<span>Frame data</span>
-												<span>62 pts</span>
-											</div>
-											<div className="text-muted-foreground mt-2 space-y-1 font-mono text-[10px]">
-												<div className="flex justify-between">
-													<span className="w-1/4"># 0</span>
-													<span className="w-1/4 text-right">t=0.00 s</span>
-													<span className="w-1/4 text-right">x=0.07 m</span>
-													<span className="w-1/4 text-right">y=-0.01 m</span>
-												</div>
-												<div className="flex justify-between">
-													<span className="w-1/4"># 1</span>
-													<span className="w-1/4 text-right">t=0.03 s</span>
-													<span className="w-1/4 text-right">x=0.09 m</span>
-													<span className="w-1/4 text-right">y=0.01 m</span>
-												</div>
-												<div className="flex justify-between">
-													<span className="w-1/4"># 2</span>
-													<span className="w-1/4 text-right">t=0.07 s</span>
-													<span className="w-1/4 text-right">x=0.15 m</span>
-													<span className="w-1/4 text-right">y=0.08 m</span>
-												</div>
-												<div className="text-data-select flex justify-between">
-													<span className="w-1/4"># 3</span>
-													<span className="w-1/4 text-right">t=0.10 s</span>
-													<span className="w-1/4 text-right">x=0.18 m</span>
-													<span className="w-1/4 text-right">y=0.11 m</span>
-												</div>
-											</div>
-											<button
-												type="button"
-												className="bg-muted text-muted-foreground hover:bg-secondary hover:text-secondary-foreground mt-3 inline-flex w-full items-center justify-center rounded-md px-3 py-2 text-[11px] font-medium transition-colors"
-											>
-												Export CSV
-											</button>
-										</div>
-									</div>
-								</div>
-
-								{/* Chart preview */}
-								<div className="grid gap-4 p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-									<div className="bg-muted rounded-lg p-4">
-										<div className="text-muted-foreground flex items-center justify-between text-[11px]">
-											<span>Position vs. Time</span>
-											<span>bobber · x-axis</span>
-										</div>
-										<div className="border-border bg-card mt-3 h-32 rounded border border-dashed">
-											{/* Simple chart line */}
-											<svg viewBox="0 0 100 40" className="h-full w-full">
-												<polyline
-													points="0,30 10,29 20,27 30,24 40,20 50,15 60,11 70,8 80,6 90,5 100,5"
-													fill="none"
-													stroke="var(--chart-2)"
-													strokeWidth="1.5"
-													strokeLinecap="round"
-													strokeLinejoin="round"
-												/>
-											</svg>
-										</div>
-									</div>
-									<div className="bg-muted space-y-3 rounded-lg p-4">
-										<p className="text-body-xs text-muted-foreground font-semibold">
-											Try it in your next lab
-										</p>
-										<p className="text-body-xs text-muted-foreground">
-											Upload a video of a pendulum, a cart on a track, or a ball
-											toss and walk students through real-time data collection,
-											graphing, and modeling.
-										</p>
-										<Link
-											to="/signup"
-											className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex items-center justify-center rounded-md px-3 py-2 text-[11px] font-semibold shadow-sm transition-colors"
-										>
-											Launch Videotrack
-										</Link>
-									</div>
+									{/* Subtle animated overlay hint */}
+									<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/5 to-transparent"></div>
 								</div>
 							</div>
 						</div>
@@ -356,61 +189,101 @@ export default function Index() {
 							</p>
 						</div>
 
-						<div className="mt-10 grid gap-6 md:grid-cols-4">
-							{/* Step 1 */}
-							<div className="bg-card ring-border rounded-xl p-5 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold">
-									1
-								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
-									Upload a video
-								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
-									Drag and drop, choose a file, or paste a YouTube URL from any
-									lab, demo, or everyday motion.
-								</p>
+						<div className="mt-10 grid gap-8 lg:grid-cols-2">
+							{/* Left Column: Scrollable Steps */}
+							<div className="space-y-8">
+								{/* Step 1 */}
+								<div className="bg-card ring-border rounded-xl p-6 shadow-sm ring-1">
+									<div className="flex items-start gap-4">
+										<span className="bg-primary/10 text-primary inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold">
+											1
+										</span>
+										<div className="flex-1">
+											<h3 className="text-body-md font-semibold">
+												Upload a video
+											</h3>
+											<p className="text-body-xs text-muted-foreground mt-2">
+												Drag and drop, choose a file, or paste a YouTube URL
+												from any lab, demo, or everyday motion.
+											</p>
+										</div>
+									</div>
+								</div>
+
+								{/* Step 2 */}
+								<div className="bg-card ring-border rounded-xl p-6 shadow-sm ring-1">
+									<div className="flex items-start gap-4">
+										<span className="bg-primary/10 text-primary inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold">
+											2
+										</span>
+										<div className="flex-1">
+											<h3 className="text-body-md font-semibold">
+												Set the scale
+											</h3>
+											<p className="text-body-xs text-muted-foreground mt-2">
+												Mark a known distance—a meter stick, a desk edge, or a
+												track segment—to calibrate real-world units.
+											</p>
+										</div>
+									</div>
+								</div>
+
+								{/* Step 3 */}
+								<div className="bg-card ring-border rounded-xl p-6 shadow-sm ring-1">
+									<div className="flex items-start gap-4">
+										<span className="bg-primary/10 text-primary inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold">
+											3
+										</span>
+										<div className="flex-1">
+											<h3 className="text-body-md font-semibold">
+												Track the object
+											</h3>
+											<p className="text-body-xs text-muted-foreground mt-2">
+												Click points frame-by-frame or enable assisted tracking.
+												Track collisions, springs, projectiles, and more.
+											</p>
+										</div>
+									</div>
+								</div>
+
+								{/* Step 4 */}
+								<div className="bg-card ring-border rounded-xl p-6 shadow-sm ring-1">
+									<div className="flex items-start gap-4">
+										<span className="bg-primary/10 text-primary inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-bold">
+											4
+										</span>
+										<div className="flex-1">
+											<h3 className="text-body-md font-semibold">
+												Generate graphs &amp; exports
+											</h3>
+											<p className="text-body-xs text-muted-foreground mt-2">
+												Instantly visualize position, velocity, and
+												acceleration, then export PNG graphs or CSV data for lab
+												reports.
+											</p>
+										</div>
+									</div>
+								</div>
 							</div>
 
-							{/* Step 2 */}
-							<div className="bg-card ring-border rounded-xl p-5 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold">
-									2
-								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
-									Set the scale
-								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
-									Mark a known distance—a meter stick, a desk edge, or a track
-									segment—to calibrate real-world units.
-								</p>
-							</div>
-
-							{/* Step 3 */}
-							<div className="bg-card ring-border rounded-xl p-5 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold">
-									3
-								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
-									Track the object
-								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
-									Click points frame-by-frame or enable assisted tracking. Track
-									collisions, springs, projectiles, and more.
-								</p>
-							</div>
-
-							{/* Step 4 */}
-							<div className="bg-card ring-border rounded-xl p-5 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold">
-									4
-								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
-									Generate graphs &amp; exports
-								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
-									Instantly visualize position, velocity, and acceleration, then
-									export PNG graphs or CSV data for lab reports.
-								</p>
+							{/* Right Column: Sticky Container */}
+							<div className="lg:sticky lg:top-20 lg:self-start">
+								<div className="bg-muted/60 ring-border flex min-h-[400px] items-center justify-center rounded-xl p-8 shadow-sm ring-1">
+									<div className="space-y-4 text-center">
+										<div className="bg-primary/10 mx-auto flex h-20 w-20 items-center justify-center rounded-full">
+											<span className="text-3xl">📊</span>
+										</div>
+										<div className="space-y-2">
+											<p className="text-body-sm text-foreground font-semibold">
+												Dynamic Image Placeholder
+											</p>
+											<p className="text-body-xs text-muted-foreground mx-auto max-w-xs">
+												This sticky container will show dynamic images that
+												change based on the active step as you scroll
+											</p>
+										</div>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -433,78 +306,78 @@ export default function Index() {
 						<div className="mt-10 grid gap-6 md:grid-cols-3">
 							{/* Feature cards */}
 							<article className="bg-card ring-border flex flex-col rounded-xl p-6 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg text-[16px]">
+								<span className="bg-primary/15 text-primary inline-flex h-12 w-12 items-center justify-center rounded-full text-xl">
 									📈
 								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
+								<h3 className="text-body-md mt-4 leading-tight font-semibold">
 									Instant graphs
 								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
+								<p className="text-body-xs text-muted-foreground mt-2 leading-snug">
 									Generate position, velocity, and acceleration plots on the
 									fly. Toggle axes, zoom, and export for reports.
 								</p>
 							</article>
 
 							<article className="bg-card ring-border flex flex-col rounded-xl p-6 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg text-[16px]">
+								<span className="bg-primary/15 text-primary inline-flex h-12 w-12 items-center justify-center rounded-full text-xl">
 									🧪
 								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
+								<h3 className="text-body-md mt-4 leading-tight font-semibold">
 									Multi-experiment library
 								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
+								<p className="text-body-xs text-muted-foreground mt-2 leading-snug">
 									Keep all your lab videos and analyses organized by class,
 									topic, or unit—ready to revisit next semester.
 								</p>
 							</article>
 
 							<article className="bg-card ring-border flex flex-col rounded-xl p-6 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg text-[16px]">
+								<span className="bg-primary/15 text-primary inline-flex h-12 w-12 items-center justify-center rounded-full text-xl">
 									💻
 								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
+								<h3 className="text-body-md mt-4 leading-tight font-semibold">
 									Browser-based
 								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
+								<p className="text-body-xs text-muted-foreground mt-2 leading-snug">
 									Works on Chromebooks, Macs, and PCs. No installs, no admin
 									permissions—just open and start tracking.
 								</p>
 							</article>
 
 							<article className="bg-card ring-border flex flex-col rounded-xl p-6 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg text-[16px]">
+								<span className="bg-primary/15 text-primary inline-flex h-12 w-12 items-center justify-center rounded-full text-xl">
 									👩‍🏫
 								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
+								<h3 className="text-body-md mt-4 leading-tight font-semibold">
 									Teacher-first controls
 								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
+								<p className="text-body-xs text-muted-foreground mt-2 leading-snug">
 									Lock key settings, share starter files, and scaffold data
 									collection so students focus on reasoning, not setup.
 								</p>
 							</article>
 
 							<article className="bg-card ring-border flex flex-col rounded-xl p-6 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg text-[16px]">
+								<span className="bg-primary/15 text-primary inline-flex h-12 w-12 items-center justify-center rounded-full text-xl">
 									📤
 								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
+								<h3 className="text-body-md mt-4 leading-tight font-semibold">
 									Export everywhere
 								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
+								<p className="text-body-xs text-muted-foreground mt-2 leading-snug">
 									Download PNG graphs and CSV data that drop directly into
 									Google Docs, Sheets, or lab notebooks.
 								</p>
 							</article>
 
 							<article className="bg-card ring-border flex flex-col rounded-xl p-6 shadow-sm ring-1">
-								<span className="bg-primary/10 text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg text-[16px]">
+								<span className="bg-primary/15 text-primary inline-flex h-12 w-12 items-center justify-center rounded-full text-xl">
 									🌐
 								</span>
-								<h3 className="text-body-md mt-4 font-semibold">
+								<h3 className="text-body-md mt-4 leading-tight font-semibold">
 									Accessible by design
 								</h3>
-								<p className="text-body-xs text-muted-foreground mt-2">
+								<p className="text-body-xs text-muted-foreground mt-2 leading-snug">
 									Clear contrast, keyboard navigation, and screen-reader
 									friendly controls support all learners.
 								</p>
@@ -579,11 +452,27 @@ export default function Index() {
 									than symbols. The graphs feel connected to what they watched
 									happen on screen."
 								</p>
-								<div className="text-body-2xs mt-4 font-semibold">
-									<p>Dr. L. Martinez</p>
-									<p className="text-muted-foreground">
-										AP Physics, Central STEM Academy
-									</p>
+								<div className="mt-4 flex items-center gap-3">
+									{/* Avatar placeholder */}
+									<div className="bg-primary/10 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full">
+										<span className="text-body-xs text-primary font-semibold">
+											LM
+										</span>
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="text-body-2xs font-semibold">
+											<p>Dr. L. Martinez</p>
+											<p className="text-muted-foreground font-normal">
+												AP Physics, Central STEM Academy
+											</p>
+										</div>
+									</div>
+									{/* School logo placeholder */}
+									<div className="bg-muted flex h-8 w-8 flex-shrink-0 items-center justify-center rounded">
+										<span className="text-muted-foreground text-[10px]">
+											CSA
+										</span>
+									</div>
 								</div>
 							</article>
 
@@ -593,11 +482,27 @@ export default function Index() {
 									experiments, share them with colleagues, and keep the focus on
 									sense-making."
 								</p>
-								<div className="text-body-2xs mt-4 font-semibold">
-									<p>J. Patel</p>
-									<p className="text-muted-foreground">
-										Physics Teacher, Lakeside HS
-									</p>
+								<div className="mt-4 flex items-center gap-3">
+									{/* Avatar placeholder */}
+									<div className="bg-primary/10 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full">
+										<span className="text-body-xs text-primary font-semibold">
+											JP
+										</span>
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="text-body-2xs font-semibold">
+											<p>J. Patel</p>
+											<p className="text-muted-foreground font-normal">
+												Physics Teacher, Lakeside HS
+											</p>
+										</div>
+									</div>
+									{/* School logo placeholder */}
+									<div className="bg-muted flex h-8 w-8 flex-shrink-0 items-center justify-center rounded">
+										<span className="text-muted-foreground text-[10px]">
+											LHS
+										</span>
+									</div>
 								</div>
 							</article>
 
@@ -606,11 +511,27 @@ export default function Index() {
 									"Students love bringing in their own videos—from skateboards
 									to basketball shots—and turning them into real data."
 								</p>
-								<div className="text-body-2xs mt-4 font-semibold">
-									<p>M. Reed</p>
-									<p className="text-muted-foreground">
-										Intro Physics, North Valley College
-									</p>
+								<div className="mt-4 flex items-center gap-3">
+									{/* Avatar placeholder */}
+									<div className="bg-primary/10 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full">
+										<span className="text-body-xs text-primary font-semibold">
+											MR
+										</span>
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="text-body-2xs font-semibold">
+											<p>M. Reed</p>
+											<p className="text-muted-foreground font-normal">
+												Intro Physics, North Valley College
+											</p>
+										</div>
+									</div>
+									{/* School logo placeholder */}
+									<div className="bg-muted flex h-8 w-8 flex-shrink-0 items-center justify-center rounded">
+										<span className="text-muted-foreground text-[10px]">
+											NVC
+										</span>
+									</div>
 								</div>
 							</article>
 						</div>
@@ -661,7 +582,7 @@ export default function Index() {
 
 							{/* Teacher Pro */}
 							<div className="bg-card ring-primary relative flex flex-col rounded-2xl p-6 shadow-xl ring-2">
-								<div className="bg-primary text-primary-foreground absolute -top-3 right-4 rounded-full px-3 py-1 text-[10px] font-semibold shadow-xs">
+								<div className="bg-warm-accent text-warm-accent-foreground absolute -top-3 right-4 rounded-full px-3 py-1 text-[10px] font-semibold shadow-xs">
 									Most popular
 								</div>
 								<p className="text-body-2xs text-primary font-semibold tracking-wide uppercase">
@@ -680,7 +601,7 @@ export default function Index() {
 								</ul>
 								<Link
 									to="/signup"
-									className="bg-primary text-button text-primary-foreground hover:bg-primary-hover mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2 shadow-md transition-colors"
+									className="bg-warm-accent text-button text-warm-accent-foreground hover:bg-warm-accent-hover mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2 shadow-md transition-colors"
 								>
 									Upgrade to Pro
 								</Link>

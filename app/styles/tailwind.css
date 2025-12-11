@@ -33,11 +33,16 @@
 	/* --- UI CHROME --- */
 	/* Subtle background for toolbars and navigation */
 	--muted: oklch(0.97 0.002 240);
-	--muted-foreground: oklch(0.4 0.01 240); /* Readable secondary text */
+	--muted-foreground: oklch(0.5 0.01 240); /* Darker for better WCAG contrast */
 
 	/* Accent: For highlighted UI elements */
 	--accent: oklch(0.95 0.01 240);
 	--accent-foreground: oklch(0.3 0.02 240);
+
+	/* Warm Accent: Vibrant amber/orange for CTAs */
+	--warm-accent: oklch(0.65 0.2 50); /* Vibrant amber/sunset orange */
+	--warm-accent-foreground: oklch(0.98 0 0); /* White text for contrast */
+	--warm-accent-hover: oklch(0.6 0.22 50); /* Slightly darker on hover */
 
 	/* --- BORDERS & INPUTS --- */
 	/* Lighter borders that don't compete with content */
@@ -59,12 +64,6 @@
 	--data-acceleration: oklch(0.6 0.18 300); /* Purple for acceleration */
 	--data-select: oklch(0.65 0.2 50); /* Amber for selected points */
 	--data-highlight: oklch(0.7 0.22 85); /* Orange for hover/highlight */
-
-	/* --- VIDEO PLAYER --- */
-	/* Dark background for video controls */
-	--player-bg: oklch(0.15 0.01 240);
-	--player-fg: oklch(0.98 0 0);
-	--player-progress-bg: oklch(0.25 0.01 240);
 
 	/* --- FOCUS RINGS --- */
 	--ring: oklch(0.5 0.17 255);
@@ -155,6 +154,11 @@
 	--accent: oklch(0.35 0.02 240);
 	--accent-foreground: oklch(0.9 0.01 240);
 
+	/* Warm Accent: Vibrant amber/orange for CTAs (dark mode) */
+	--warm-accent: oklch(0.7 0.22 50); /* Brighter in dark mode */
+	--warm-accent-foreground: oklch(0.98 0 0); /* White text for contrast */
+	--warm-accent-hover: oklch(0.75 0.24 50); /* Lighter on hover */
+
 	/* --- BORDERS & INPUTS --- */
 	--border: oklch(0.38 0.01 240);
 	--input: oklch(0.28 0.01 240);
@@ -175,10 +179,6 @@
 	--data-acceleration: oklch(0.7 0.19 300); /* Brighter purple */
 	--data-select: oklch(0.75 0.22 50); /* Brighter amber */
 	--data-highlight: oklch(0.8 0.24 85); /* Brighter orange */
-
-	/* --- VIDEO PLAYER (Dark Mode) --- */
-	--player-bg: oklch(0.18 0.01 240);
-	--player-progress-bg: oklch(0.28 0.01 240);
 
 	/* --- FOCUS RINGS --- */
 	--ring: oklch(0.6 0.15 255);
@@ -260,6 +260,9 @@
 	--color-muted-foreground: var(--muted-foreground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
+	--color-warm-accent: var(--warm-accent);
+	--color-warm-accent-foreground: var(--warm-accent-foreground);
+	--color-warm-accent-hover: var(--warm-accent-hover);
 	--color-destructive: var(--destructive);
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-foreground-destructive: var(--foreground-destructive);
@@ -555,6 +558,23 @@
 
 	.border-warning {
 		border-color: var(--warning);
+	}
+
+	/* Warm accent utility classes for CTAs */
+	.bg-warm-accent {
+		background-color: var(--warm-accent);
+	}
+
+	.text-warm-accent {
+		color: var(--warm-accent);
+	}
+
+	.text-warm-accent-foreground {
+		color: var(--warm-accent-foreground);
+	}
+
+	.hover\:bg-warm-accent-hover:hover {
+		background-color: var(--warm-accent-hover);
 	}
 }
 
