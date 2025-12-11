@@ -267,8 +267,6 @@
 			],
 			"implemented": true,
 			"tests_passed": true
-			"implemented": false,
-			"tests_passed": false
 		},
 		{
 			"id": "F021",
