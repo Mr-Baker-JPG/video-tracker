@@ -8,16 +8,40 @@ import { reactRouterDevTools } from 'react-router-devtools'
 import { defineConfig } from 'vite'
 import { envOnlyMacros } from 'vite-env-only'
 import { iconsSpritesheet } from 'vite-plugin-icons-spritesheet'
+import path from 'node:path'
 
 const MODE = process.env.NODE_ENV
 
 export default defineConfig((config) => ({
+	resolve: {
+		alias: {
+			'@prisma/client/runtime/library': '@prisma/client/runtime/client',
+			'.prisma/client/index-browser': path.resolve(
+				process.cwd(),
+				'node_modules/.prisma/client/browser',
+			),
+			'.prisma/client/default': path.resolve(
+				process.cwd(),
+				'node_modules/.prisma/client/client',
+			),
+		},
+	},
+	optimizeDeps: {
+		exclude: ['@prisma/client', '@prisma/client/sql'],
+	},
 	build: {
 		target: 'es2022',
 		cssMinify: MODE === 'production',
 
 		rollupOptions: {
-			external: [/node:.*/, 'fsevents'],
+			external: [
+				/node:.*/,
+				'fsevents',
+				/@prisma\/client/,
+				/@prisma\/client\/.*/,
+				/\.prisma\/client/,
+				/@prisma\/client\/runtime\/.*/,
+			],
 		},
 
 		assetsInlineLimit: (source: string) => {
@@ -55,6 +79,31 @@ export default defineConfig((config) => ({
 		MODE === 'production' && process.env.SENTRY_AUTH_TOKEN
 			? sentryReactRouter(sentryConfig, config)
 			: null,
+		{
+			name: 'prisma-client-alias',
+			resolveId(id) {
+				if (id === '.prisma/client/index-browser') {
+					return path.resolve(
+						process.cwd(),
+						'node_modules/.prisma/client/browser.ts',
+					)
+				}
+				if (id === '.prisma/client/default') {
+					return path.resolve(
+						process.cwd(),
+						'node_modules/.prisma/client/client.ts',
+					)
+				}
+				// Handle @prisma/client/runtime/library import
+				if (id === '@prisma/client/runtime/library') {
+					return path.resolve(
+						process.cwd(),
+						'node_modules/@prisma/client/runtime/library.mjs',
+					)
+				}
+				return null
+			},
+		},
 	],
 	test: {
 		include: ['./app/**/*.test.{ts,tsx}'],

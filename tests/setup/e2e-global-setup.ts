@@ -18,7 +18,7 @@ async function globalSetup() {
 	await fsExtra.ensureDir(path.dirname(E2E_DATABASE_PATH))
 
 	// Always reset the database for e2e tests to ensure a clean state
-	await execaCommand('npx prisma migrate reset --force --skip-seed', {
+	await execaCommand('npx prisma migrate reset --force', {
 		stdio: 'inherit',
 		env: {
 			...process.env,

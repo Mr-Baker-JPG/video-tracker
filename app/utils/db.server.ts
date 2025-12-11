@@ -1,7 +1,7 @@
 import { styleText } from 'node:util'
 import { remember } from '@epic-web/remember'
-// Changed import due to issue: https://github.com/remix-run/react-router/pull/12644
-import { PrismaClient } from '@prisma/client/index.js'
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
+import { PrismaClient } from '@prisma/client'
 
 export const prisma = remember('prisma', () => {
 	// NOTE: if you change anything in this function you'll need to restart
@@ -10,13 +10,26 @@ export const prisma = remember('prisma', () => {
 	// Feel free to change this log threshold to something that makes sense for you
 	const logThreshold = 20
 
+	// Extract DATABASE_URL (allowing "file:./dev.db" and "./dev.db" formats)
+	const databaseUrl = process.env.DATABASE_URL || 'file:./dev.db'
+	// Prisma adapter for better-sqlite3 does a naive `url.replace(/^file:/, '')`,
+	// so query params end up in the filename. Strip query params to avoid pointing
+	// at a different DB file (e.g., "data.db?connection_limit=1").
+	const databaseUrlWithoutParams = databaseUrl.split('?')[0] || databaseUrl
+
+	// Prisma 7.1 driver adapter expects a config object with url; it constructs
+	// its own better-sqlite3 instance internally.
+	const adapter = new PrismaBetterSqlite3({ url: databaseUrlWithoutParams })
+
 	const client = new PrismaClient({
+		adapter,
 		log: [
 			{ level: 'query', emit: 'event' },
 			{ level: 'error', emit: 'stdout' },
 			{ level: 'warn', emit: 'stdout' },
 		],
 	})
+
 	client.$on('query', async (e) => {
 		if (e.duration < logThreshold) return
 		const color =
