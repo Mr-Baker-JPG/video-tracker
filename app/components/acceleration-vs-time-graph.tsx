@@ -264,6 +264,11 @@ export function AccelerationVsTimeGraph({
 	const graphContainerRef = useRef<HTMLDivElement>(null)
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
 	const [isReady, setIsReady] = useState(false)
+	const [isStable, setIsStable] = useState(false)
+	const [containerDimensions, setContainerDimensions] = useState<{
+		width: number
+		height: number
+	} | null>(null)
 
 	// Check if container has valid dimensions before rendering chart
 	useLayoutEffect(() => {
@@ -276,8 +281,30 @@ export function AccelerationVsTimeGraph({
 				rect.height >= MIN_CHART_DIMENSION
 			) {
 				setIsReady(true)
+				// Wait for next frame to ensure layout is stable before allowing ResponsiveContainer to render
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						const stableRect = el.getBoundingClientRect()
+						if (
+							stableRect.width >= MIN_CHART_DIMENSION &&
+							stableRect.height >= MIN_CHART_DIMENSION
+						) {
+							setIsStable(true)
+							// Store explicit dimensions to use with ResponsiveContainer
+							setContainerDimensions({
+								width: stableRect.width,
+								height: stableRect.height,
+							})
+						} else {
+							setIsStable(false)
+							setContainerDimensions(null)
+						}
+					})
+				})
 			} else {
 				setIsReady(false)
+				setIsStable(false)
+				setContainerDimensions(null)
 			}
 		}
 
@@ -583,13 +610,16 @@ export function AccelerationVsTimeGraph({
 	}
 
 	// Compute if dimensions are actually valid at render time (final safety check)
+	// Also require isStable to ensure container has been laid out for at least 2 frames
 	const canRenderChart = useMemo(() => {
-		if (!isReady || !graphContainerRef.current) return false
+		if (!isReady || !isStable || !graphContainerRef.current) {
+			return false
+		}
 		const rect = graphContainerRef.current.getBoundingClientRect()
 		return (
 			rect.width >= MIN_CHART_DIMENSION && rect.height >= MIN_CHART_DIMENSION
 		)
-	}, [isReady])
+	}, [isReady, isStable])
 
 	if (trackingPoints.length === 0) {
 		return (
@@ -628,12 +658,24 @@ export function AccelerationVsTimeGraph({
 			<div
 				ref={graphContainerRef}
 				data-chart-ready={isReady ? 'true' : 'false'}
-				className={`h-96 min-h-[384px] w-full min-w-0 ${
-					!isReady ? 'pointer-events-none opacity-0' : ''
-				}`}
+				className="h-96 min-h-[384px] w-full min-w-0"
+				style={{
+					// Ensure container has explicit dimensions for ResponsiveContainer to measure
+					// Use inline styles to guarantee dimensions are available when ResponsiveContainer mounts
+					width: '100%',
+					height: '384px',
+					minWidth: '1px',
+					minHeight: '384px',
+				}}
 			>
 				{canRenderChart && (
-					<ResponsiveContainer width="100%" height="100%">
+					<ResponsiveContainer
+						key={isStable ? 'stable' : 'unstable'}
+						width={containerDimensions?.width ?? '100%'}
+						height={containerDimensions?.height ?? '100%'}
+						minHeight={MIN_CHART_DIMENSION}
+						minWidth={MIN_CHART_DIMENSION}
+					>
 						<LineChart data={chartData}>
 							<CartesianGrid strokeDasharray="3 3" />
 							<XAxis
