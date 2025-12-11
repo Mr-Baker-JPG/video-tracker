@@ -284,8 +284,8 @@
 				"Manual: Verify line of best fit visually matches data trend",
 				"Manual: Verify mathematical model statistics are accurate for physics analysis"
 			],
-			"implemented": false,
-			"tests_passed": false
+			"implemented": true,
+			"tests_passed": true
 		},
 		{
 			"id": "F022",

@@ -20,7 +20,7 @@ test('Graph component receives and displays tracking data', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
 	)
 
 	// Check that axis toggle tabs are present (using Tabs component)
@@ -35,7 +35,7 @@ test('Graph component receives and displays tracking data', () => {
 })
 
 test('Graph component shows empty state when no tracking data', () => {
-	render(<AccelerationVsTimeGraph trackingPoints={[]} scale={null} />)
+	render(<AccelerationVsTimeGraph trackingPoints={[]} scale={null} axis={null} />)
 
 	expect(
 		screen.getByText(
@@ -52,7 +52,7 @@ test('X/Y toggle switches graph axes correctly', async () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
 	)
 
 	// Initially X axis should be selected (default)
@@ -90,7 +90,7 @@ test('Acceleration calculation is correct for sample data', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
 	)
 
 	// Graph should render - check that tabs are present
@@ -104,7 +104,7 @@ test('Acceleration handles edge cases', () => {
 	const singlePoint = [{ frame: 0, x: 100, y: 200, trackingObjectId: 'obj1' }]
 
 	const { unmount: unmount1 } = render(
-		<AccelerationVsTimeGraph trackingPoints={singlePoint} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={singlePoint} scale={null} axis={null} />,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount1()
@@ -116,7 +116,7 @@ test('Acceleration handles edge cases', () => {
 	]
 
 	const { unmount: unmount2 } = render(
-		<AccelerationVsTimeGraph trackingPoints={twoPoints} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={twoPoints} scale={null} axis={null} />,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 	unmount2()
@@ -129,7 +129,7 @@ test('Acceleration handles edge cases', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={multiplePoints} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={multiplePoints} scale={null} axis={null} />,
 	)
 	expect(screen.getByRole('tab', { name: /x axis/i })).toBeInTheDocument()
 })
@@ -143,7 +143,7 @@ test('Acceleration converts to m/s² when scale is available', () => {
 	const scale = { pixelsPerMeter: 100 } // 100 pixels = 1 meter
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={scale} />,
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={scale} axis={null} />,
 	)
 
 	// Graph should render with scale data
@@ -162,7 +162,7 @@ test('Graph handles multiple tracking objects', () => {
 	]
 
 	render(
-		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} />,
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
 	)
 
 	// Graph should render with multiple objects
@@ -170,7 +170,57 @@ test('Graph handles multiple tracking objects', () => {
 	expect(screen.getByRole('tab', { name: /y axis/i })).toBeInTheDocument()
 })
 
+test('Best fit controls render and can toggle model panel', async () => {
+	const user = userEvent.setup()
+	const trackingPoints = [
+		{ frame: 0, x: 0, y: 0, trackingObjectId: 'obj1' },
+		{ frame: 30, x: 10, y: 5, trackingObjectId: 'obj1' },
+		{ frame: 60, x: 20, y: 10, trackingObjectId: 'obj1' },
+	]
 
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+	)
 
+	const generateButton = screen.getByRole('button', {
+		name: /generate best fit/i,
+	})
+	expect(generateButton).toBeInTheDocument()
+	const modelButton = screen.getByRole('button', { name: /model/i })
+	expect(modelButton).toBeDisabled()
 
+	await user.click(generateButton)
+	expect(modelButton).toBeEnabled()
 
+	await user.click(modelButton)
+	expect(screen.getByText(/Mathematical Model/i)).toBeInTheDocument()
+})
+
+test('All function types are available in dropdown', () => {
+	const trackingPoints = [
+		{ frame: 0, x: 0, y: 0, trackingObjectId: 'obj1' },
+		{ frame: 30, x: 10, y: 5, trackingObjectId: 'obj1' },
+		{ frame: 60, x: 20, y: 10, trackingObjectId: 'obj1' },
+	]
+
+	render(
+		<AccelerationVsTimeGraph trackingPoints={trackingPoints} scale={null} axis={null} />,
+	)
+
+	const select = screen.getByLabelText(/fit:/i)
+	expect(select).toBeInTheDocument()
+
+	// Check that all function types are present
+	const expectedTypes = [
+		'Linear',
+		'Quadratic',
+		'Cubic',
+		'Exponential',
+		'Inverse Square',
+		'Square Root',
+	]
+
+	for (const type of expectedTypes) {
+		expect(screen.getByRole('option', { name: type })).toBeInTheDocument()
+	}
+})

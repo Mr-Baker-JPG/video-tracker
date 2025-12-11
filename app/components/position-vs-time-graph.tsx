@@ -3,6 +3,7 @@ import {
 	useMemo,
 	useRef,
 	useLayoutEffect,
+	useCallback,
 	type ReactElement,
 } from 'react'
 import {
@@ -18,8 +19,13 @@ import {
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Tabs, TabsList, TabsTrigger } from '#app/components/ui/tabs.tsx'
-import { exportGraphAsPNG } from '#app/utils/graph-export.tsx'
 import { transformToAxisCoordinates } from '#app/utils/coordinate-transform.ts'
+import { exportGraphAsPNG } from '#app/utils/graph-export.tsx'
+import {
+	type FunctionType,
+	type RegressionResult,
+	bestFitFunction,
+} from '#app/utils/regression.ts'
 
 interface TrackingPoint {
 	frame: number
@@ -56,6 +62,18 @@ const MIN_CHART_DIMENSION = 32
 
 type AxisType = 'x' | 'y'
 
+const FIT_OPTIONS: Array<{ value: FunctionType; label: string }> = [
+	{ value: 'linear', label: 'Linear' },
+	{ value: 'quadratic', label: 'Quadratic' },
+	{ value: 'cubic', label: 'Cubic' },
+	{ value: 'exponential', label: 'Exponential' },
+	{ value: 'inverseSquare', label: 'Inverse Square' },
+	{ value: 'squareRoot', label: 'Square Root' },
+]
+
+// Distinct color for all fit lines
+const FIT_LINE_COLOR = '#ef4444' // red-500
+
 export function PositionVsTimeGraph({
 	trackingPoints,
 	trackingObjects = [],
@@ -64,6 +82,9 @@ export function PositionVsTimeGraph({
 }: PositionVsTimeGraphProps) {
 	const graphContainerRef = useRef<HTMLDivElement>(null)
 	const [selectedAxis, setSelectedAxis] = useState<AxisType>('x')
+	const [fitType, setFitType] = useState<FunctionType>('linear')
+	const [showFit, setShowFit] = useState(false)
+	const [showModel, setShowModel] = useState(false)
 	const [isReady, setIsReady] = useState(false)
 	const [isStable, setIsStable] = useState(false)
 	const [containerDimensions, setContainerDimensions] = useState<{
@@ -131,22 +152,28 @@ export function PositionVsTimeGraph({
 	}, [])
 
 	// Helper to get tracking object name
-	const getTrackingObjectName = (id: string): string => {
-		const obj = trackingObjects.find((o) => o.id === id)
-		return obj?.name || `Object ${id.slice(-6)}`
-	}
+	const getTrackingObjectName = useCallback(
+		(id: string): string => {
+			const obj = trackingObjects.find((o) => o.id === id)
+			return obj?.name || `Object ${id.slice(-6)}`
+		},
+		[trackingObjects],
+	)
 
 	// Helper to get tracking object color
-	const getTrackingObjectColor = (id: string): string => {
-		const obj = trackingObjects.find((o) => o.id === id)
-		if (obj?.color) return obj.color
-		// Generate color from ID hash
-		const hash = id.split('').reduce((acc, char) => {
-			return char.charCodeAt(0) + ((acc << 5) - acc)
-		}, 0)
-		const hue = Math.abs(hash) % 360
-		return `hsl(${hue}, 70%, 50%)`
-	}
+	const getTrackingObjectColor = useCallback(
+		(id: string): string => {
+			const obj = trackingObjects.find((o) => o.id === id)
+			if (obj?.color) return obj.color
+			// Generate color from ID hash
+			const hash = id.split('').reduce((acc, char) => {
+				return char.charCodeAt(0) + ((acc << 5) - acc)
+			}, 0)
+			const hue = Math.abs(hash) % 360
+			return `hsl(${hue}, 70%, 50%)`
+		},
+		[trackingObjects],
+	)
 
 	// Transform tracking points into chart data
 	const chartData = useMemo(() => {
@@ -231,7 +258,13 @@ export function PositionVsTimeGraph({
 		}
 
 		return lines
-	}, [trackingPoints, selectedAxis, scale])
+	}, [
+		trackingPoints,
+		selectedAxis,
+		scale,
+		getTrackingObjectColor,
+		getTrackingObjectName,
+	])
 
 	const yAxisLabel =
 		selectedAxis === 'x'
@@ -243,184 +276,324 @@ export function PositionVsTimeGraph({
 				: 'Position Y (pixels)'
 
 	// Calculate evenly spaced ticks for both axes
-	const { timeTicks, positionTicks, timeDomain, positionDomain } =
-		useMemo(() => {
-			if (chartData.length === 0) {
+	const {
+		timeTicks,
+		positionTicks,
+		timeDomain,
+		positionDomain,
+		minTime,
+		maxTime,
+	} = useMemo(() => {
+		if (chartData.length === 0) {
+			return {
+				timeTicks: [0],
+				positionTicks: [0],
+				timeDomain: [0, 1] as [number, number],
+				positionDomain: [0, 1] as [number, number],
+				minTime: 0,
+				maxTime: 0,
+			}
+		}
+
+		// Calculate time range
+		const times = chartData.map((d) => d.time ?? 0).filter((t) => isFinite(t))
+		if (times.length === 0) {
+			return {
+				timeTicks: [0],
+				positionTicks: [0],
+				timeDomain: [0, 1] as [number, number],
+				positionDomain: [0, 1] as [number, number],
+				minTime: 0,
+				maxTime: 0,
+			}
+		}
+
+		const minTime = Math.min(...times)
+		const maxTime = Math.max(...times)
+
+		// Calculate position range based on selected axis
+		// When scale is available, use meter values; otherwise use pixel values
+		const positionValues: number[] = []
+		const axisSuffix = selectedAxis === 'x' ? '_x' : '_y'
+		const meterSuffix = `${axisSuffix}_meters`
+
+		for (const dataPoint of chartData) {
+			for (const key of Object.keys(dataPoint)) {
+				if (key === 'time') continue
+
+				// When scale is available, only use meter values
+				// When scale is not available, only use pixel values
+				const shouldInclude = scale
+					? key.endsWith(meterSuffix)
+					: key.endsWith(axisSuffix) && !key.endsWith('_meters')
+
+				if (shouldInclude) {
+					const value = dataPoint[key]
+					if (typeof value === 'number' && isFinite(value)) {
+						positionValues.push(value)
+					}
+				}
+			}
+		}
+
+		// Generate evenly spaced ticks with nice round numbers
+		const generateNiceTicks = (
+			min: number,
+			max: number,
+			targetCount: number = 6,
+			useTightPadding: boolean = false,
+		): { ticks: number[]; domain: [number, number] } => {
+			if (min === max || !isFinite(min) || !isFinite(max)) {
+				const singleValue = min || 0
+				// For single values, use a small but visible range
+				const padding = useTightPadding
+					? Math.abs(singleValue) * 0.1 || 0.01
+					: 0.1
 				return {
-					timeTicks: [0],
-					positionTicks: [0],
-					timeDomain: [0, 1] as [number, number],
-					positionDomain: [0, 1] as [number, number],
+					ticks: [singleValue],
+					domain: [singleValue - padding, singleValue + padding] as [
+						number,
+						number,
+					],
 				}
 			}
 
-			// Calculate time range
-			const times = chartData.map((d) => d.time ?? 0).filter((t) => isFinite(t))
-			if (times.length === 0) {
-				return {
-					timeTicks: [0],
-					positionTicks: [0],
-					timeDomain: [0, 1] as [number, number],
-					positionDomain: [0, 1] as [number, number],
-				}
-			}
+			// Calculate the raw range
+			const rawRange = max - min
 
-			const minTime = Math.min(...times)
-			const maxTime = Math.max(...times)
-
-			// Calculate position range based on selected axis
-			// When scale is available, use meter values; otherwise use pixel values
-			const positionValues: number[] = []
-			const axisSuffix = selectedAxis === 'x' ? '_x' : '_y'
-			const meterSuffix = `${axisSuffix}_meters`
-
-			for (const dataPoint of chartData) {
-				for (const key of Object.keys(dataPoint)) {
-					if (key === 'time') continue
-
-					// When scale is available, only use meter values
-					// When scale is not available, only use pixel values
-					const shouldInclude = scale
-						? key.endsWith(meterSuffix)
-						: key.endsWith(axisSuffix) && !key.endsWith('_meters')
-
-					if (shouldInclude) {
-						const value = dataPoint[key]
-						if (typeof value === 'number' && isFinite(value)) {
-							positionValues.push(value)
-						}
-					}
-				}
-			}
-
-			// Generate evenly spaced ticks with nice round numbers
-			const generateNiceTicks = (
-				min: number,
-				max: number,
-				targetCount: number = 6,
-				useTightPadding: boolean = false,
-			): { ticks: number[]; domain: [number, number] } => {
-				if (min === max || !isFinite(min) || !isFinite(max)) {
-					const singleValue = min || 0
-					// For single values, use a small but visible range
-					const padding = useTightPadding
-						? Math.abs(singleValue) * 0.1 || 0.01
-						: 0.1
-					return {
-						ticks: [singleValue],
-						domain: [singleValue - padding, singleValue + padding] as [
-							number,
-							number,
-						],
-					}
-				}
-
-				// Calculate the raw range
-				const rawRange = max - min
-
-				// For tight padding (position axis), use minimal expansion
-				// For normal padding (time axis), use slightly more
-				let padding: number
-				if (useTightPadding) {
-					// Use very small padding - just enough to see data points clearly
-					// For small ranges, use a percentage; for larger ranges, cap the padding
-					if (rawRange < 1) {
-						padding = rawRange * 0.05 // 5% for very small ranges
-					} else if (rawRange < 10) {
-						padding = Math.min(rawRange * 0.03, 0.5) // 3% or max 0.5
-					} else {
-						padding = Math.min(rawRange * 0.02, 2) // 2% or max 2
-					}
+			// For tight padding (position axis), use minimal expansion
+			// For normal padding (time axis), use slightly more
+			let padding: number
+			if (useTightPadding) {
+				// Use very small padding - just enough to see data points clearly
+				// For small ranges, use a percentage; for larger ranges, cap the padding
+				if (rawRange < 1) {
+					padding = rawRange * 0.05 // 5% for very small ranges
+				} else if (rawRange < 10) {
+					padding = Math.min(rawRange * 0.03, 0.5) // 3% or max 0.5
 				} else {
-					// Normal padding for time axis
-					padding = rawRange * 0.05 // 5% padding
-				}
-
-				// Find a nice step size based on the data range
-				const rawStep = rawRange / (targetCount - 1)
-
-				// Round step to a nice number (powers of 1, 2, 5)
-				// But ensure step isn't too large relative to the data
-				const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
-				const normalizedStep = rawStep / magnitude
-				let niceStep: number
-				if (normalizedStep <= 1) {
-					niceStep = magnitude
-				} else if (normalizedStep <= 2) {
-					niceStep = 2 * magnitude
-				} else if (normalizedStep <= 5) {
-					niceStep = 5 * magnitude
-				} else {
-					niceStep = 10 * magnitude
-				}
-
-				// For tight padding, ensure step size isn't too large
-				// If step is more than 2x the raw step, use a smaller step
-				if (useTightPadding && niceStep > rawStep * 2) {
-					// Use a smaller magnitude
-					const smallerMagnitude = magnitude / 10
-					if (smallerMagnitude > 0) {
-						niceStep = smallerMagnitude * 5 // Use 5x the smaller magnitude
-					}
-				}
-
-				// Calculate domain with minimal padding
-				const paddedMin = min - padding
-				const paddedMax = max + padding
-
-				// Round to step boundaries
-				let niceMin = Math.floor(paddedMin / niceStep) * niceStep
-				let niceMax = Math.ceil(paddedMax / niceStep) * niceStep
-
-				// For tight padding, ensure we don't expand too far beyond the data
-				if (useTightPadding) {
-					const maxExpansion = Math.max(rawRange * 0.15, niceStep * 2) // Max 15% or 2 steps
-					if (niceMin < min - maxExpansion) {
-						niceMin = Math.floor((min - maxExpansion) / niceStep) * niceStep
-					}
-					if (niceMax > max + maxExpansion) {
-						niceMax = Math.ceil((max + maxExpansion) / niceStep) * niceStep
-					}
-				}
-
-				// Generate evenly spaced ticks
-				const ticks: number[] = []
-				const numTicks = Math.round((niceMax - niceMin) / niceStep) + 1
-				for (let i = 0; i < numTicks; i++) {
-					const tick = niceMin + i * niceStep
-					ticks.push(Number(tick.toFixed(10)))
-				}
-
-				return {
-					ticks,
-					domain: [niceMin, niceMax] as [number, number],
-				}
-			}
-
-			// Generate ticks for time axis (use normal padding)
-			const timeResult = generateNiceTicks(minTime, maxTime, 6, false)
-
-			// Generate ticks for position axis (use tight padding to avoid extreme scales)
-			let positionResult: { ticks: number[]; domain: [number, number] }
-			if (positionValues.length === 0) {
-				positionResult = {
-					ticks: [0],
-					domain: [0, 1] as [number, number],
+					padding = Math.min(rawRange * 0.02, 2) // 2% or max 2
 				}
 			} else {
-				const minPosition = Math.min(...positionValues)
-				const maxPosition = Math.max(...positionValues)
-				// Use tight padding for position to keep scale reasonable
-				positionResult = generateNiceTicks(minPosition, maxPosition, 6, true)
+				// Normal padding for time axis
+				padding = rawRange * 0.05 // 5% padding
+			}
+
+			// Find a nice step size based on the data range
+			const rawStep = rawRange / (targetCount - 1)
+
+			// Round step to a nice number (powers of 1, 2, 5)
+			// But ensure step isn't too large relative to the data
+			const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+			const normalizedStep = rawStep / magnitude
+			let niceStep: number
+			if (normalizedStep <= 1) {
+				niceStep = magnitude
+			} else if (normalizedStep <= 2) {
+				niceStep = 2 * magnitude
+			} else if (normalizedStep <= 5) {
+				niceStep = 5 * magnitude
+			} else {
+				niceStep = 10 * magnitude
+			}
+
+			// For tight padding, ensure step size isn't too large
+			// If step is more than 2x the raw step, use a smaller step
+			if (useTightPadding && niceStep > rawStep * 2) {
+				// Use a smaller magnitude
+				const smallerMagnitude = magnitude / 10
+				if (smallerMagnitude > 0) {
+					niceStep = smallerMagnitude * 5 // Use 5x the smaller magnitude
+				}
+			}
+
+			// Calculate domain with minimal padding
+			const paddedMin = min - padding
+			const paddedMax = max + padding
+
+			// Round to step boundaries
+			let niceMin = Math.floor(paddedMin / niceStep) * niceStep
+			let niceMax = Math.ceil(paddedMax / niceStep) * niceStep
+
+			// For tight padding, ensure we don't expand too far beyond the data
+			if (useTightPadding) {
+				const maxExpansion = Math.max(rawRange * 0.15, niceStep * 2) // Max 15% or 2 steps
+				if (niceMin < min - maxExpansion) {
+					niceMin = Math.floor((min - maxExpansion) / niceStep) * niceStep
+				}
+				if (niceMax > max + maxExpansion) {
+					niceMax = Math.ceil((max + maxExpansion) / niceStep) * niceStep
+				}
+			}
+
+			// Generate evenly spaced ticks
+			const ticks: number[] = []
+			const numTicks = Math.round((niceMax - niceMin) / niceStep) + 1
+			for (let i = 0; i < numTicks; i++) {
+				const tick = niceMin + i * niceStep
+				ticks.push(Number(tick.toFixed(10)))
 			}
 
 			return {
-				timeTicks: timeResult.ticks,
-				positionTicks: positionResult.ticks,
-				timeDomain: timeResult.domain,
-				positionDomain: positionResult.domain,
+				ticks,
+				domain: [niceMin, niceMax] as [number, number],
 			}
-		}, [chartData, selectedAxis, scale])
+		}
+
+		// Generate ticks for time axis (use normal padding)
+		const timeResult = generateNiceTicks(minTime, maxTime, 6, false)
+
+		// Generate ticks for position axis (use tight padding to avoid extreme scales)
+		let positionResult: { ticks: number[]; domain: [number, number] }
+		if (positionValues.length === 0) {
+			positionResult = {
+				ticks: [0],
+				domain: [0, 1] as [number, number],
+			}
+		} else {
+			const minPosition = Math.min(...positionValues)
+			const maxPosition = Math.max(...positionValues)
+			// Use tight padding for position to keep scale reasonable
+			positionResult = generateNiceTicks(minPosition, maxPosition, 6, true)
+		}
+
+		return {
+			timeTicks: timeResult.ticks,
+			positionTicks: positionResult.ticks,
+			timeDomain: timeResult.domain,
+			positionDomain: positionResult.domain,
+			minTime,
+			maxTime,
+		}
+	}, [chartData, selectedAxis, scale])
+
+	// Compute regression per tracking object for selected axis
+	const { regressionLines, regressionModels, combinedData } = useMemo(() => {
+		if (!showFit || chartData.length === 0) {
+			return {
+				regressionLines: [],
+				regressionModels: [],
+				combinedData: chartData,
+			}
+		}
+
+		const objectIds = new Set(trackingPoints.map((p) => p.trackingObjectId))
+		const fitLines: ReactElement[] = []
+		const models: Array<{
+			objectId: string
+			name: string
+			color: string
+			result: RegressionResult
+		}> = []
+
+		// Start with a copy of the original chart data
+		const dataWithFits = chartData.map((d) => ({ ...d }))
+
+		// Generate dense time points for smooth fit lines (100 points for smooth curves)
+		const numFitPoints = 100
+		const sampleTimes =
+			minTime === maxTime
+				? [minTime]
+				: Array.from({ length: numFitPoints }, (_, i) => {
+						const t = minTime + ((maxTime - minTime) * i) / (numFitPoints - 1)
+						return t
+					})
+
+		for (const objectId of objectIds) {
+			const baseKey =
+				selectedAxis === 'x'
+					? scale
+						? `${objectId}_x_meters`
+						: `${objectId}_x`
+					: scale
+						? `${objectId}_y_meters`
+						: `${objectId}_y`
+
+			const series = chartData
+				.map((d) => {
+					const y = d[baseKey]
+					const time = d.time as number | undefined
+					if (typeof y !== 'number' || typeof time !== 'number') return null
+					if (!isFinite(y) || !isFinite(time)) return null
+					return { x: time, y }
+				})
+				.filter(Boolean) as Array<{ x: number; y: number }>
+
+			const result = bestFitFunction(series, fitType)
+			if (!result) continue
+
+			const name = getTrackingObjectName(objectId)
+			const fitKey = `${objectId}_fit`
+
+			// Add fit values to existing data points at their time values
+			// This ensures the fit line aligns with the data structure
+			for (const dataPoint of dataWithFits) {
+				const time = dataPoint.time as number | undefined
+				if (typeof time === 'number' && isFinite(time)) {
+					const predicted = result.predict(time)
+					dataPoint[fitKey] = predicted
+				}
+			}
+
+			// Also add dense fit points for smooth rendering
+			// Merge these into the data array, ensuring no duplicates
+			const existingTimes = new Set(
+				dataWithFits.map((d) => d.time as number).filter((t) => isFinite(t)),
+			)
+
+			for (const t of sampleTimes) {
+				// Only add if this time point doesn't already exist (to avoid duplicates)
+				if (!existingTimes.has(t)) {
+					const predicted = result.predict(t)
+					const fitPoint: Record<string, number> = { time: t }
+					fitPoint[fitKey] = predicted
+					dataWithFits.push(fitPoint)
+				}
+			}
+
+			fitLines.push(
+				<Line
+					key={`${objectId}-fit`}
+					type="monotone"
+					dataKey={fitKey}
+					stroke={FIT_LINE_COLOR}
+					strokeWidth={2}
+					strokeDasharray="6 4"
+					dot={false}
+					name={`${name} fit (${fitType})`}
+					isAnimationActive={false}
+					connectNulls={false}
+				/>,
+			)
+
+			models.push({
+				objectId,
+				name,
+				color: getTrackingObjectColor(objectId),
+				result,
+			})
+		}
+
+		// Sort by time to ensure smooth rendering
+		dataWithFits.sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
+
+		return {
+			regressionLines: fitLines,
+			regressionModels: models,
+			combinedData: dataWithFits,
+		}
+	}, [
+		chartData,
+		fitType,
+		selectedAxis,
+		scale,
+		showFit,
+		minTime,
+		maxTime,
+		trackingPoints,
+		getTrackingObjectColor,
+		getTrackingObjectName,
+	])
 
 	const handleExport = async () => {
 		if (!graphContainerRef.current) return
@@ -463,20 +636,59 @@ export function PositionVsTimeGraph({
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				{/* <h2 className="text-h2">Position vs Time</h2> */}
-				<Tabs
-					value={selectedAxis}
-					onValueChange={(value) => setSelectedAxis(value as AxisType)}
-				>
-					<TabsList className="grid h-fit w-auto grid-cols-2 text-xs">
-						<TabsTrigger className="h-5 text-xs" value="x">
-							X Axis
-						</TabsTrigger>
-						<TabsTrigger className="h-5 text-xs" value="y">
-							Y Axis
-						</TabsTrigger>
-					</TabsList>
-				</Tabs>
+				<div className="flex items-center gap-3">
+					<Tabs
+						value={selectedAxis}
+						onValueChange={(value) => setSelectedAxis(value as AxisType)}
+					>
+						<TabsList className="grid h-fit w-auto grid-cols-2 text-xs">
+							<TabsTrigger className="h-5 text-xs" value="x">
+								X Axis
+							</TabsTrigger>
+							<TabsTrigger className="h-5 text-xs" value="y">
+								Y Axis
+							</TabsTrigger>
+						</TabsList>
+					</Tabs>
+					<div className="flex items-center gap-2 text-xs">
+						<label htmlFor="fitType" className="text-slate-500">
+							Fit:
+						</label>
+						<select
+							id="fitType"
+							value={fitType}
+							onChange={(e) => setFitType(e.target.value as FunctionType)}
+							className="h-8 rounded-md border border-slate-200 px-2 text-xs"
+						>
+							{FIT_OPTIONS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+						<Button
+							type="button"
+							variant={showFit ? 'secondary' : 'outline'}
+							size="sm"
+							onClick={() => setShowFit((prev) => !prev)}
+							className="h-8 gap-2"
+						>
+							<Icon name="plus" className="size-4" />
+							{showFit ? 'Hide Best Fit' : 'Generate Best Fit'}
+						</Button>
+						<Button
+							type="button"
+							variant={showModel ? 'secondary' : 'outline'}
+							size="sm"
+							onClick={() => setShowModel((prev) => !prev)}
+							disabled={!showFit}
+							className="h-8 gap-2"
+						>
+							<Icon name="question-mark-circled" className="size-4" />
+							Model
+						</Button>
+					</div>
+				</div>
 				<Button
 					variant="outline"
 					size="sm"
@@ -508,7 +720,7 @@ export function PositionVsTimeGraph({
 						minHeight={MIN_CHART_DIMENSION}
 						minWidth={MIN_CHART_DIMENSION}
 					>
-						<LineChart data={chartData}>
+						<LineChart data={combinedData}>
 							<CartesianGrid strokeDasharray="3 3" />
 							<XAxis
 								dataKey="time"
@@ -571,10 +783,47 @@ export function PositionVsTimeGraph({
 							/>
 							<Legend />
 							{lines}
+							{regressionLines}
 						</LineChart>
 					</ResponsiveContainer>
 				)}
 			</div>
+			{showModel && (
+				<div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+					<div className="mb-2 font-semibold">Mathematical Model</div>
+					{regressionModels.length === 0 && (
+						<div className="text-slate-500">
+							No fit available yet. Add more data points and generate a fit.
+						</div>
+					)}
+					{regressionModels.map((model) => (
+						<div
+							key={model.objectId}
+							className="mb-2 rounded-md border border-slate-200 bg-white p-3"
+							style={{ borderLeft: `4px solid ${model.color}` }}
+						>
+							<div className="flex items-center justify-between">
+								<div className="font-medium">{model.name}</div>
+								<div className="text-xs text-slate-500">
+									R²: {model.result.r2?.toFixed(4) ?? 'N/A'}
+								</div>
+							</div>
+							<div className="text-xs text-slate-600">
+								Equation: {model.result.equation}
+							</div>
+							<div className="text-xs text-slate-500">
+								Coefficients:{' '}
+								{model.result.coefficients
+									.map(
+										(c, idx) =>
+											`${idx === 0 ? 'c0' : `c${idx}`}=${c.toFixed(5)}`,
+									)
+									.join(', ')}
+							</div>
+						</div>
+					))}
+				</div>
+			)}
 		</div>
 	)
 }
