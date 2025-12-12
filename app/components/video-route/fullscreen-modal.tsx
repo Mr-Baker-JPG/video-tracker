@@ -71,32 +71,34 @@ export function FullscreenModal({
 							e.stopPropagation()
 						}}
 					>
-					{/* Header */}
-					{title && (
-						<div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
-							<h2 className="text-lg font-semibold text-slate-800">{title}</h2>
-							<button
-								type="button"
-								onClick={onClose}
-								className="ml-auto rounded-lg p-2 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-								aria-label="Close modal"
-							>
-								<Icon name="cross-1" className="h-5 w-5 text-slate-600" />
-							</button>
-						</div>
-					)}
-					{!title && (
-						<div className="absolute right-4 top-4 z-10">
-							<button
-								type="button"
-								onClick={onClose}
-								className="rounded-lg p-2 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-								aria-label="Close modal"
-							>
-								<Icon name="cross-1" className="h-5 w-5 text-slate-600" />
-							</button>
-						</div>
-					)}
+						{/* Header */}
+						{title && (
+							<div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
+								<h2 className="text-lg font-semibold text-slate-800">
+									{title}
+								</h2>
+								<button
+									type="button"
+									onClick={onClose}
+									className="ml-auto rounded-lg p-2 transition-colors hover:bg-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+									aria-label="Close modal"
+								>
+									<Icon name="cross-1" className="h-5 w-5 text-slate-600" />
+								</button>
+							</div>
+						)}
+						{!title && (
+							<div className="absolute top-4 right-4 z-10">
+								<button
+									type="button"
+									onClick={onClose}
+									className="rounded-lg p-2 transition-colors hover:bg-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+									aria-label="Close modal"
+								>
+									<Icon name="cross-1" className="h-5 w-5 text-slate-600" />
+								</button>
+							</div>
+						)}
 						{/* Content */}
 						<div className="flex-1 overflow-auto">{children}</div>
 					</motion.div>

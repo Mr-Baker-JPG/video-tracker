@@ -41,7 +41,9 @@ test('Fullscreen button renders in data table header', () => {
 	)
 
 	// Find the fullscreen button by its aria-label
-	const fullscreenButton = screen.getByLabelText('Open data table in fullscreen')
+	const fullscreenButton = screen.getByLabelText(
+		'Open data table in fullscreen',
+	)
 	expect(fullscreenButton).toBeInTheDocument()
 })
 
@@ -67,7 +69,9 @@ test('Modal opens when fullscreen button is clicked', async () => {
 	expect(screen.queryByText('Data Points')).not.toBeInTheDocument()
 
 	// Click the fullscreen button
-	const fullscreenButton = screen.getByLabelText('Open data table in fullscreen')
+	const fullscreenButton = screen.getByLabelText(
+		'Open data table in fullscreen',
+	)
 	await user.click(fullscreenButton)
 
 	// Modal should now be visible with title
@@ -93,7 +97,9 @@ test('Modal closes when close button is clicked', async () => {
 	)
 
 	// Open modal
-	const fullscreenButton = screen.getByLabelText('Open data table in fullscreen')
+	const fullscreenButton = screen.getByLabelText(
+		'Open data table in fullscreen',
+	)
 	await user.click(fullscreenButton)
 
 	// Modal should be visible
@@ -126,7 +132,9 @@ test('Modal closes when ESC key is pressed', async () => {
 	)
 
 	// Open modal
-	const fullscreenButton = screen.getByLabelText('Open data table in fullscreen')
+	const fullscreenButton = screen.getByLabelText(
+		'Open data table in fullscreen',
+	)
 	await user.click(fullscreenButton)
 
 	// Modal should be visible
@@ -158,16 +166,16 @@ test('Modal closes when backdrop is clicked', async () => {
 	)
 
 	// Open modal
-	const fullscreenButton = screen.getByLabelText('Open data table in fullscreen')
+	const fullscreenButton = screen.getByLabelText(
+		'Open data table in fullscreen',
+	)
 	await user.click(fullscreenButton)
 
 	// Modal should be visible
 	expect(screen.getByText('Data Points')).toBeInTheDocument()
 
 	// Click on backdrop (the overlay element with bg-black/50)
-	const modalContainer = screen
-		.getByText('Data Points')
-		.closest('.fixed')
+	const modalContainer = screen.getByText('Data Points').closest('.fixed')
 	const backdrop = modalContainer?.previousElementSibling as HTMLElement | null
 	if (backdrop) {
 		await user.click(backdrop)

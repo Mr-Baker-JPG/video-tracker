@@ -161,7 +161,7 @@ export function GraphSection({
 						<button
 							type="button"
 							onClick={() => setIsGraphFullscreen(true)}
-							className="rounded-lg p-1.5 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="rounded-lg p-1.5 transition-colors hover:bg-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 							aria-label="Open graphs in fullscreen"
 							title="Fullscreen"
 						>
@@ -217,9 +217,7 @@ export function GraphSection({
 				open={isGraphFullscreen}
 				onClose={() => setIsGraphFullscreen(false)}
 			>
-				<div className="flex h-full flex-col">
-					{renderGraphContent('')}
-				</div>
+				<div className="flex h-full flex-col">{renderGraphContent('')}</div>
 			</FullscreenModal>
 		</>
 	)

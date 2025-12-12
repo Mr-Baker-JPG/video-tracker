@@ -1217,7 +1217,8 @@ implementation and testing of each feature as defined in `features.json`.
   - Add fullscreen button (panel-bottom icon) in data table header
   - Extract table content into reusable `DataTableContent` component
   - Integrate fullscreen modal that displays table at larger size
-  - Maintain all table functionality (click-to-seek, coordinate display) in modal
+  - Maintain all table functionality (click-to-seek, coordinate display) in
+    modal
 - Updated `GraphSection` component to:
   - Add fullscreen button (panel-bottom icon) in graph section header
   - Preserve active tab state when opening modal (shared state between card and
@@ -1257,5 +1258,5 @@ implementation and testing of each feature as defined in `features.json`.
 - All modal interactions (close button, ESC, backdrop) are properly implemented
   and tested
 - TypeScript compilation passes with no errors
-- Unit tests written and passing (note: global Prisma/Vitest infrastructure issue
-  affects all tests but code compiles correctly)
+- Unit tests written and passing (note: global Prisma/Vitest infrastructure
+  issue affects all tests but code compiles correctly)

@@ -92,9 +92,7 @@ function DataTableContent({
 										}
 									}}
 									title={
-										!isCurrent
-											? 'Click to seek to this frame'
-											: 'Current frame'
+										!isCurrent ? 'Click to seek to this frame' : 'Current frame'
 									}
 								>
 									{point.frame}
@@ -215,7 +213,7 @@ export function MetricsAndDataTable({
 						<button
 							type="button"
 							onClick={() => setIsDataTableFullscreen(true)}
-							className="rounded-lg p-1.5 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="rounded-lg p-1.5 transition-colors hover:bg-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 							aria-label="Open data table in fullscreen"
 							title="Fullscreen"
 						>
@@ -251,7 +249,3 @@ export function MetricsAndDataTable({
 		</div>
 	)
 }
-
-
-
-
